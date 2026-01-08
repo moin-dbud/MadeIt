@@ -1,0 +1,14 @@
+# MadeIt Robots.txt
+# Allow crawling of public portfolios
+
+User-agent: *
+Allow: /
+Allow: /portfolio/*
+
+# Disallow private/auth pages
+Disallow: /dashboard
+Disallow: /projects
+Disallow: /profile-setup
+
+# Sitemap
+Sitemap: https://madeit.app/sitemap.xml

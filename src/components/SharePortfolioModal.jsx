@@ -1,26 +1,34 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Copy, Check, Linkedin } from "lucide-react";
+import { X, Copy, Check, Linkedin, MessageCircle } from "lucide-react";
 import { useState } from "react";
+import { getPublicPortfolioUrl, getSocialShareUrls } from "../utils/publicPortfolio";
 
-export default function SharePortfolioModal({ isOpen, onClose, username }) {
+export default function SharePortfolioModal({ isOpen, onClose, username, name = '' }) {
     const [copied, setCopied] = useState(false);
 
-    const portfolioUrl = `https://madeit.app/u/${username}`;
+    const hasUsername = username && username.trim() !== '';
+    const portfolioUrl = hasUsername ? getPublicPortfolioUrl(username) : '';
+    const socialUrls = hasUsername ? getSocialShareUrls(username, name) : {};
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(portfolioUrl);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+    const handleCopy = async () => {
+        if (!hasUsername) return;
+
+        try {
+            await navigator.clipboard.writeText(portfolioUrl);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (error) {
+            console.error("Failed to copy:", error);
+        }
     };
 
-    const handleLinkedInShare = () => {
-        const linkedInUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(portfolioUrl)}`;
-        window.open(linkedInUrl, '_blank', 'width=600,height=600');
-    };
+    const handleSocialShare = (platform) => {
+        if (!hasUsername) return;
 
-    const handleTwitterShare = () => {
-        const twitterUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(portfolioUrl)}&text=${encodeURIComponent('Check out my developer portfolio on MadeIt!')}`;
-        window.open(twitterUrl, '_blank', 'width=600,height=400');
+        const url = socialUrls[platform];
+        if (url) {
+            window.open(url, '_blank', 'width=600,height=400');
+        }
     };
 
     return (
@@ -51,57 +59,82 @@ export default function SharePortfolioModal({ isOpen, onClose, username }) {
                             </button>
                         </div>
 
-                        {/* Portfolio URL */}
+                        {/* Content */}
                         <div className="mb-6">
-                            <label className="text-sm text-[#A0A0A0] mb-2 block">Portfolio URL</label>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="text"
-                                    value={portfolioUrl}
-                                    readOnly
-                                    className="flex-1 px-4 py-3 bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] rounded-lg text-white text-sm font-mono"
-                                />
-                                <button
-                                    onClick={handleCopy}
-                                    className="px-4 py-3 bg-[#FF6B35] hover:bg-[#FF8555] text-white rounded-lg transition-colors flex items-center gap-2"
-                                >
-                                    {copied ? (
-                                        <>
-                                            <Check size={16} />
-                                            Copied
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Copy size={16} />
-                                            Copy
-                                        </>
-                                    )}
-                                </button>
-                            </div>
+                            {!hasUsername ? (
+                                /* Username not set - show setup message */
+                                <div className="p-6 rounded-xl bg-[rgba(255,107,53,0.1)] border border-[rgba(255,107,53,0.2)]">
+                                    <p className="text-sm text-white mb-2 font-medium">
+                                        Complete Your Portfolio Setup
+                                    </p>
+                                    <p className="text-sm text-[#A0A0A0]">
+                                        You need to complete your portfolio setup and choose a username before you can share your portfolio.
+                                        Please finish the setup process first.
+                                    </p>
+                                </div>
+                            ) : (
+                                /* Username set - show share options */
+                                <>
+                                    <label className="text-sm text-[#A0A0A0] mb-2 block">Portfolio URL</label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={portfolioUrl}
+                                            readOnly
+                                            className="flex-1 px-4 py-3 bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] rounded-lg text-white text-sm font-mono"
+                                        />
+                                        <button
+                                            onClick={handleCopy}
+                                            className="px-4 py-3 bg-[#FF6B35] hover:bg-[#FF8555] text-white rounded-lg transition-colors flex items-center gap-2"
+                                        >
+                                            {copied ? (
+                                                <>
+                                                    <Check size={16} />
+                                                    Copied
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Copy size={16} />
+                                                    Copy
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         {/* Social Share Buttons */}
-                        <div>
-                            <label className="text-sm text-[#A0A0A0] mb-3 block">Share on social media</label>
-                            <div className="grid grid-cols-2 gap-3">
-                                <button
-                                    onClick={handleLinkedInShare}
-                                    className="px-4 py-3 bg-[#0A66C2] hover:bg-[#004182] text-white rounded-lg transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <Linkedin size={18} />
-                                    LinkedIn
-                                </button>
-                                <button
-                                    onClick={handleTwitterShare}
-                                    className="px-4 py-3 bg-[#1DA1F2] hover:bg-[#0C8BD9] text-white rounded-lg transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                                    </svg>
-                                    X / Twitter
-                                </button>
+                        {hasUsername && (
+                            <div>
+                                <label className="text-sm text-[#A0A0A0] mb-3 block">Share on social media</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        onClick={() => handleSocialShare('linkedin')}
+                                        className="px-4 py-3 bg-[#0A66C2] hover:bg-[#004182] text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <Linkedin size={18} />
+                                        LinkedIn
+                                    </button>
+                                    <button
+                                        onClick={() => handleSocialShare('twitter')}
+                                        className="px-4 py-3 bg-[#1DA1F2] hover:bg-[#0C8BD9] text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                                        </svg>
+                                        X / Twitter
+                                    </button>
+                                    <button
+                                        onClick={() => handleSocialShare('whatsapp')}
+                                        className="px-4 py-3 bg-[#25D366] hover:bg-[#1EBE57] text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <MessageCircle size={18} />
+                                        WhatsApp
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Info */}
                         <div className="mt-6 p-3 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] rounded-lg">

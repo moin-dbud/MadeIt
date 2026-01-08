@@ -6,6 +6,8 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight, Rocket, CheckCircle2, Calendar, ExternalLink, User, LogOut, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getMilestones } from "../config/projects.config";
+import LoadingButton from "../components/LoadingButton";
+import { PageLoader } from "../components/SkeletonLoaders";
 
 export default function Dashboard() {
     const user = auth.currentUser;
@@ -151,14 +153,7 @@ export default function Dashboard() {
 
     // ---- LOADING STATE ----
     if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-[#0A0A0A]">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-[#FF6B35] border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-sm text-[#A0A0A0]">Loading your dashboard...</p>
-                </div>
-            </div>
-        );
+        return <PageLoader message="Loading your dashboard..." />;
     }
 
     if (!userData) return null;
@@ -285,13 +280,14 @@ export default function Dashboard() {
                                 <p className="text-[#A0A0A0] mb-8 max-w-md mx-auto">
                                     Choose a real-world project and begin building.
                                 </p>
-                                <button
+                                <LoadingButton
                                     onClick={() => navigate("/projects")}
-                                    className="px-8 py-3.5 cursor-pointer rounded-xl bg-[#FF6B35] text-white text-sm font-medium inline-flex items-center gap-2 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+                                    variant="primary"
+                                    className="w-auto"
                                 >
                                     Choose Project
                                     <ArrowRight size={18} strokeWidth={2} />
-                                </button>
+                                </LoadingButton>
                             </div>
                         ) : (
                             // ACTIVE PROJECT
@@ -322,13 +318,14 @@ export default function Dashboard() {
                                     ></div>
                                 </div>
 
-                                <button
+                                <LoadingButton
                                     onClick={() => navigate(`/projects/${activeProject.id}`)}
-                                    className="w-full py-3.5 cursor-pointer rounded-xl bg-[#FF6B35] text-white text-sm font-medium flex items-center justify-center gap-2 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+                                    variant="primary"
+                                    className="w-full"
                                 >
                                     Continue Project
                                     <ArrowRight size={18} strokeWidth={2} />
-                                </button>
+                                </LoadingButton>
                             </div>
                         )}
                     </div>
@@ -551,13 +548,14 @@ export default function Dashboard() {
                                 >
                                     Cancel
                                 </button>
-                                <button
+                                <LoadingButton
                                     onClick={saveAccountChanges}
-                                    disabled={saving}
-                                    className="px-6 py-2.5 rounded-xl text-sm font-medium bg-[#FF6B35] hover:bg-[#FF6B35]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    loading={saving}
+                                    loadingText="Saving..."
+                                    variant="primary"
                                 >
-                                    {saving ? "Saving..." : "Save Changes"}
-                                </button>
+                                    Save Changes
+                                </LoadingButton>
                             </div>
                         </motion.div>
                     </motion.div>

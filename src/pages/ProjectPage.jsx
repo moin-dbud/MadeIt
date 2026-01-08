@@ -7,6 +7,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getProjectById, getMilestones, getMilestoneStatus, areMilestoneTasksCompleted, calculateProgress } from "../config/projects.config";
 import MilestoneCard from "../components/MilestoneCard";
 import SubmissionModal from "../components/SubmissionModal";
+import LoadingButton from "../components/LoadingButton";
+import { PageLoader, MilestoneCardSkeleton } from "../components/SkeletonLoaders";
 
 export default function ProjectPage() {
     const { projectId } = useParams();
@@ -338,14 +340,7 @@ export default function ProjectPage() {
 
     // ---- LOADING STATE ----
     if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-[#0A0A0A]">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-[#FF6B35] border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-sm text-[#A0A0A0]">Loading project...</p>
-                </div>
-            </div>
-        );
+        return <PageLoader message="Loading project..." />;
     }
 
     if (!userData || !project) return null;
@@ -736,14 +731,17 @@ export default function ProjectPage() {
                                         </span>
                                     </label>
 
-                                    <button
+                                    <LoadingButton
                                         onClick={handleContinue}
-                                        disabled={!understood || !repoConfirmed || !githubRepo.trim() || accepting}
-                                        className="w-full mt-6 py-3.5 rounded-xl bg-[#FF6B35] text-white text-sm font-medium flex items-center justify-center gap-2 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 cursor-pointer"
+                                        disabled={!understood || !repoConfirmed || !githubRepo.trim()}
+                                        loading={accepting}
+                                        loadingText="Saving..."
+                                        variant="primary"
+                                        className="w-full mt-6"
                                     >
-                                        {accepting ? "Saving..." : "Start Project"}
+                                        Start Project
                                         <ArrowRight size={18} strokeWidth={2} />
-                                    </button>
+                                    </LoadingButton>
                                 </div>
                             </div>
                         </motion.div>

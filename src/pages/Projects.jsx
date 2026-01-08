@@ -5,6 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight, Lock, Clock, Award, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getAllProjects } from "../config/projects.config";
+import LoadingButton from "../components/LoadingButton";
+import { PageLoader, ProjectCardSkeleton } from "../components/SkeletonLoaders";
 
 export default function Projects() {
     const user = auth.currentUser;
@@ -103,14 +105,7 @@ export default function Projects() {
 
     // ---- LOADING STATE ----
     if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-[#0A0A0A]">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-[#FF6B35] border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-sm text-[#A0A0A0]">Loading projects...</p>
-                </div>
-            </div>
-        );
+        return <PageLoader message="Loading projects..." />;
     }
 
     if (!userData) return null;
@@ -220,21 +215,23 @@ export default function Projects() {
                                         Locked — Finish current project
                                     </button>
                                 ) : isActive ? (
-                                    <button
+                                    <LoadingButton
                                         onClick={() => navigate(`/projects/${project.projectId}`)}
-                                        className="w-full py-3 rounded-xl bg-[#FF6B35] text-white text-sm font-medium flex items-center justify-center gap-2 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                                        variant="primary"
+                                        className="w-full"
                                     >
                                         Continue Project
                                         <ArrowRight size={18} strokeWidth={2} />
-                                    </button>
+                                    </LoadingButton>
                                 ) : (
-                                    <button
+                                    <LoadingButton
                                         onClick={() => handleStartProject(project)}
-                                        className="w-full py-3 rounded-xl border border-[rgba(255,255,255,0.1)] text-white text-sm font-medium flex items-center justify-center gap-2 transition-all duration-300 hover:bg-[rgba(255,255,255,0.05)] cursor-pointer"
+                                        variant="secondary"
+                                        className="w-full"
                                     >
                                         Start Project
                                         <ArrowRight size={18} strokeWidth={2} />
-                                    </button>
+                                    </LoadingButton>
                                 )}
                             </motion.div>
                         );
@@ -311,13 +308,15 @@ export default function Projects() {
                                     >
                                         Cancel
                                     </button>
-                                    <button
+                                    <LoadingButton
                                         onClick={confirmStartProject}
-                                        disabled={starting}
-                                        className="flex-1 py-3 rounded-xl bg-[#FF6B35] text-white text-sm font-medium hover:bg-[#FF6B35]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                        loading={starting}
+                                        loadingText="Starting..."
+                                        variant="primary"
+                                        className="flex-1"
                                     >
-                                        {starting ? "Starting..." : "Confirm & Start"}
-                                    </button>
+                                        Confirm & Start
+                                    </LoadingButton>
                                 </div>
                             </div>
                         </motion.div>

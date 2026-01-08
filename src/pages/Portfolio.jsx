@@ -5,11 +5,20 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
     Github, Linkedin, Mail, Download, Calendar, Flame, Clock, TrendingUp,
     X, AlertCircle, ArrowRight, ChevronDown, ChevronUp, ExternalLink,
-    Settings, Eye, EyeOff, Code, Award, CheckCircle2
+    Settings, Eye, EyeOff, Code, Award, CheckCircle2, Rocket, GitCommit, Share2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getProjectById, getMilestones, getAllProjects } from "../config/projects.config";
 import { fetchGitHubActivity, formatDuration, formatDate, getTimeSinceSync } from "../services/github.service";
+import EmptyState from "../components/EmptyState";
+import LoadingButton from "../components/LoadingButton";
+import { PageLoader, PortfolioSectionSkeleton, GitHubActivitySkeleton, InlineLoader } from "../components/SkeletonLoaders";
+import { GitHubError } from "../components/ErrorMessage";
+import { handleAuthError } from "../utils/authErrorHandler";
+import { calculateWorkDisciplineMetrics, getActivityTimeline } from "../utils/activityTracking";
+import { getUserByUsername, filterPublicUserData } from "../utils/publicPortfolio";
+import SharePortfolioModal from "../components/SharePortfolioModal";
+import { useSEO, getPortfolioSEO, trackPortfolioView } from "../utils/seo";
 
 export default function Portfolio() {
     const { username } = useParams();
@@ -53,16 +62,52 @@ export default function Portfolio() {
     const [githubLoading, setGithubLoading] = useState(false);
     const [githubError, setGithubError] = useState(null);
 
+    // Work discipline metrics
+    const [workMetrics, setWorkMetrics] = useState({
+        totalActiveDays: 0,
+        currentStreak: 0,
+        longestStreak: 0,
+        timeline: [],
+        lastActiveFormatted: 'Never',
+        avgDaysPerMilestone: 0
+    });
+
+    // Share modal
+    const [showShareModal, setShowShareModal] = useState(false);
+
+    // Portfolio not found
+    const [portfolioNotFound, setPortfolioNotFound] = useState(false);
+
     // ---- FETCH USER DATA ----
     useEffect(() => {
         const fetchUserData = async () => {
-            if (!user) {
-                if (username) {
-                    // TODO: Implement public portfolio fetching by username
+            // PUBLIC PORTFOLIO VIEW (username in URL, no auth required)
+            if (!user && username) {
+                try {
+                    const publicUser = await getUserByUsername(username);
+
+                    if (!publicUser) {
+                        setPortfolioNotFound(true);
+                        setLoading(false);
+                        return;
+                    }
+
+                    // Filter sensitive data for public view
+                    const filteredData = filterPublicUserData(publicUser);
+                    setUserData(filteredData);
+                    setIsOwner(false);
+                } catch (error) {
+                    console.error("Error fetching public portfolio:", error);
+                    setPortfolioNotFound(true);
+                } finally {
                     setLoading(false);
-                } else {
-                    navigate("/");
                 }
+                return;
+            }
+
+            // No user and no username - redirect to home
+            if (!user) {
+                navigate("/");
                 return;
             }
 
@@ -79,7 +124,13 @@ export default function Portfolio() {
                     }
 
                     setUserData(data);
-                    setIsOwner(true);
+
+                    // Check if viewing own portfolio via username URL
+                    if (username) {
+                        setIsOwner(data.profile?.username?.toLowerCase() === username.toLowerCase());
+                    } else {
+                        setIsOwner(true);
+                    }
 
                     // Load portfolio settings
                     if (data.portfolio?.settings) {
@@ -97,6 +148,18 @@ export default function Portfolio() {
                 }
             } catch (error) {
                 console.error("Error fetching user data:", error);
+
+                // Handle auth errors (session expired, permission denied, etc.)
+                const handled = await handleAuthError(error, navigate, {
+                    preserveLocation: true,
+                    showMessage: true
+                });
+
+                if (!handled) {
+                    // Not an auth error, show generic error
+                    // User will see empty state or can retry by refreshing
+                    console.error("Failed to load portfolio data");
+                }
             } finally {
                 setLoading(false);
             }
@@ -154,6 +217,64 @@ export default function Portfolio() {
 
         loadGitHubActivity();
     }, [userData]);
+
+    // ---- RETRY GITHUB ACTIVITY ----
+    const retryGitHubActivity = async () => {
+        if (!userData?.activeProject?.id) return;
+
+        setGithubLoading(true);
+        setGithubError(null);
+
+        try {
+            const projects = [];
+
+            if (userData.activeProject.githubRepo) {
+                const projectConfig = getProjectById(userData.activeProject.id);
+                if (projectConfig) {
+                    projects.push({
+                        projectId: userData.activeProject.id,
+                        name: projectConfig.name,
+                        githubRepo: userData.activeProject.githubRepo,
+                        status: 'ongoing'
+                    });
+                }
+            }
+
+            if (projects.length > 0) {
+                const activity = await fetchGitHubActivity(projects);
+                setGithubActivity(activity);
+                localStorage.setItem('githubActivity', JSON.stringify(activity));
+            }
+        } catch (error) {
+            console.error('Error fetching GitHub activity:', error);
+            setGithubError(error.message);
+        } finally {
+            setGithubLoading(false);
+        }
+    };
+
+    // ---- CALCULATE WORK DISCIPLINE METRICS ----
+    useEffect(() => {
+        if (!userData) return;
+
+        // Calculate all metrics from activity events
+        const metrics = calculateWorkDisciplineMetrics(userData);
+        setWorkMetrics(metrics);
+    }, [userData, githubActivity]); // Recalculate when userData or GitHub activity changes
+
+    // ---- SEO & ANALYTICS ----
+    // Generate SEO config based on userData
+    const seoConfig = userData ? getPortfolioSEO(userData, username || userData.profile?.username) : {};
+
+    // Apply SEO meta tags
+    useSEO(seoConfig);
+
+    // Track portfolio view (public portfolios only)
+    useEffect(() => {
+        if (userData && !isOwner && username) {
+            trackPortfolioView(username);
+        }
+    }, [userData, isOwner, username]);
 
     // ---- CHECK IF SETUP MODAL SHOULD SHOW ----
     const checkAndShowSetupModal = (data) => {
@@ -425,11 +546,30 @@ export default function Portfolio() {
 
     // ---- LOADING STATE ----
     if (loading) {
+        return <PageLoader message="Loading portfolio..." />;
+    }
+
+    // ---- PORTFOLIO NOT FOUND ----
+    if (portfolioNotFound) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#0A0A0A]">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-[#FF6B35] border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-sm text-[#A0A0A0]">Loading portfolio...</p>
+            <div className="min-h-screen flex items-center justify-center bg-[#0A0A0A] text-white p-4">
+                <div className="max-w-md w-full text-center">
+                    <div className="w-16 h-16 rounded-full bg-[rgba(255,107,53,0.1)] flex items-center justify-center mx-auto mb-6">
+                        <AlertCircle size={32} className="text-[#FF6B35]" />
+                    </div>
+                    <h1 className="text-2xl font-semibold mb-3">
+                        Portfolio Not Found
+                    </h1>
+                    <p className="text-[#A0A0A0] mb-8">
+                        The portfolio you're looking for doesn't exist or has been removed.
+                    </p>
+                    <button
+                        onClick={() => navigate("/")}
+                        className="px-6 py-3 rounded-xl bg-[#FF6B35] text-white text-sm font-medium hover:bg-[#FF6B35]/90 transition-colors inline-flex items-center gap-2"
+                    >
+                        <ArrowRight size={18} className="rotate-180" />
+                        Back to Home
+                    </button>
                 </div>
             </div>
         );
@@ -543,6 +683,15 @@ export default function Portfolio() {
                                         Download PDF
                                     </button>
                                 )}
+                                {isOwner && (
+                                    <button
+                                        onClick={() => setShowShareModal(true)}
+                                        className="px-4 py-2 rounded-lg border border-[rgba(255,255,255,0.1)] text-sm font-medium flex items-center gap-2 hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+                                    >
+                                        <Share2 size={16} />
+                                        Share Portfolio
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -552,10 +701,18 @@ export default function Portfolio() {
             {/* MAIN CONTENT */}
             <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
                 {/* SKILLS SECTION */}
-                {(skills.frontend.length > 0 || skills.backend.length > 0 || skills.tools.length > 0) && (
-                    <section className="mb-12 md:mb-16">
-                        <h2 className="text-2xl font-semibold tracking-tight mb-6">Skills Proven Through Work</h2>
+                <section className="mb-12 md:mb-16">
+                    <h2 className="text-2xl font-semibold tracking-tight mb-6">Skills Proven Through Work</h2>
 
+                    {(skills.frontend.length === 0 && skills.backend.length === 0 && skills.tools.length === 0) ? (
+                        <EmptyState
+                            icon={Code}
+                            title="No Skills Unlocked Yet"
+                            description="Complete milestones in your projects to unlock and showcase skills you've proven through real work."
+                            actionLabel={isOwner ? "Start Building" : undefined}
+                            onAction={isOwner ? () => navigate("/projects") : undefined}
+                        />
+                    ) : (
                         <div className="space-y-4">
                             {skills.frontend.length > 0 && (
                                 <div>
@@ -627,8 +784,8 @@ export default function Portfolio() {
                                 </button>
                             )}
                         </div>
-                    </section>
-                )}
+                    )}
+                </section>
 
                 {/* PROJECTS SECTION */}
                 <section id="projects-section" className="mb-12 md:mb-16 scroll-mt-20">
@@ -637,17 +794,13 @@ export default function Portfolio() {
                     </h2>
 
                     {projects.length === 0 ? (
-                        <div className="text-center py-16 px-4 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)]">
-                            <p className="text-[#A0A0A0]">No projects yet</p>
-                            {isOwner && (
-                                <button
-                                    onClick={() => navigate("/projects")}
-                                    className="mt-4 px-6 py-2 rounded-lg bg-[#FF6B35] text-white text-sm font-medium hover:bg-[#FF6B35]/90 transition-colors"
-                                >
-                                    Start Your First Project
-                                </button>
-                            )}
-                        </div>
+                        <EmptyState
+                            icon={Rocket}
+                            title="No Projects Started Yet"
+                            description="Your portfolio will showcase real projects you build. Start your first project to begin your journey."
+                            actionLabel={isOwner ? "Choose a Project" : undefined}
+                            onAction={isOwner ? () => navigate("/projects") : undefined}
+                        />
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {projects.map(project => {
@@ -817,7 +970,7 @@ export default function Portfolio() {
                                     <Calendar size={16} className="text-[#FF6B35]" />
                                     <p className="text-xs text-[#A0A0A0]">Active Days</p>
                                 </div>
-                                <p className="text-2xl font-semibold">{stats.activeDays}</p>
+                                <p className="text-2xl font-semibold">{workMetrics.totalActiveDays}</p>
                             </div>
 
                             <div className="p-6 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)]">
@@ -825,7 +978,7 @@ export default function Portfolio() {
                                     <Flame size={16} className="text-[#FF6B35]" />
                                     <p className="text-xs text-[#A0A0A0]">Longest Streak</p>
                                 </div>
-                                <p className="text-2xl font-semibold">{stats.activeDays > 0 ? stats.activeDays : 0}</p>
+                                <p className="text-2xl font-semibold">{workMetrics.longestStreak}</p>
                             </div>
 
                             <div className="p-6 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)]">
@@ -833,7 +986,11 @@ export default function Portfolio() {
                                     <TrendingUp size={16} className="text-[#FF6B35]" />
                                     <p className="text-xs text-[#A0A0A0]">Avg Pace</p>
                                 </div>
-                                <p className="text-2xl font-semibold">-</p>
+                                <p className="text-2xl font-semibold">
+                                    {workMetrics.avgDaysPerMilestone > 0
+                                        ? `${workMetrics.avgDaysPerMilestone}d/m`
+                                        : '-'}
+                                </p>
                             </div>
 
                             <div className="p-6 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)]">
@@ -841,7 +998,7 @@ export default function Portfolio() {
                                     <Clock size={16} className="text-[#FF6B35]" />
                                     <p className="text-xs text-[#A0A0A0]">Last Active</p>
                                 </div>
-                                <p className="text-2xl font-semibold">{stats.lastUpdated}</p>
+                                <p className="text-2xl font-semibold">{workMetrics.lastActiveFormatted}</p>
                             </div>
                         </div>
                     </section>
@@ -864,147 +1021,177 @@ export default function Portfolio() {
                         </div>
 
                         <div className="space-y-3">
-                            {stats.activeDays === 0 ? (
+                            {workMetrics.totalActiveDays === 0 ? (
                                 <div className="text-center py-8 px-4 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)]">
                                     <p className="text-[#A0A0A0]">No activity yet</p>
                                 </div>
                             ) : (
-                                <div className="flex items-center gap-4">
-                                    <span className="text-sm text-[#A0A0A0] w-24">Jan 2026</span>
-                                    <div className="flex-1 h-8 bg-[rgba(255,255,255,0.05)] rounded-lg overflow-hidden">
-                                        <div
-                                            className="h-full bg-[#FF6B35] transition-all duration-500"
-                                            style={{ width: `${(stats.activeDays / 31) * 100}%` }}
-                                        ></div>
-                                    </div>
-                                    <span className="text-sm text-white w-16 text-right">{stats.activeDays} days</span>
-                                </div>
+                                <>
+                                    {workMetrics.timeline.map((month, index) => (
+                                        <div key={index} className="flex items-center gap-4">
+                                            <span className="text-sm text-[#A0A0A0] w-24">{month.month}</span>
+                                            <div className="flex-1 h-8 bg-[rgba(255,255,255,0.05)] rounded-lg overflow-hidden">
+                                                <div
+                                                    className="h-full bg-[#FF6B35] transition-all duration-500"
+                                                    style={{ width: `${month.percentage}%` }}
+                                                ></div>
+                                            </div>
+                                            <span className="text-sm text-white w-16 text-right">
+                                                {month.activeDays} {month.activeDays === 1 ? 'day' : 'days'}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </>
                             )}
                         </div>
                     </section>
                 )}
 
                 {/* GITHUB ACTIVITY SECTION */}
-                {githubActivity && githubActivity.projects.length > 0 && (
-                    <section className="mb-12 md:mb-16">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-2xl font-semibold tracking-tight">GitHub Activity</h2>
-                            {githubActivity.lastSynced && (
-                                <span className="text-xs text-[#A0A0A0]">
-                                    Last synced: {getTimeSinceSync(githubActivity.lastSynced)}
-                                </span>
-                            )}
-                        </div>
-
-                        {/* GitHub Profile Link */}
-                        {userData.socials?.github && (
-                            <div className="mb-6">
-                                <a
-                                    href={userData.socials.github}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-sm text-[#FF6B35] hover:underline flex items-center gap-2"
-                                >
-                                    <Github size={16} />
-                                    {userData.socials.github.replace('https://', '')}
-                                    <ExternalLink size={14} />
-                                </a>
-                            </div>
+                <section className="mb-12 md:mb-16">
+                    <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-2xl font-semibold tracking-tight">GitHub Activity</h2>
+                        {githubActivity?.lastSynced && (
+                            <span className="text-xs text-[#A0A0A0]">
+                                Last synced: {getTimeSinceSync(githubActivity.lastSynced)}
+                            </span>
                         )}
+                    </div>
 
-                        {/* MadeIt Projects */}
-                        <div className="mb-6">
-                            <h3 className="text-sm font-medium text-[#A0A0A0] mb-4">MadeIt Projects:</h3>
-                            <div className="space-y-3">
-                                {githubActivity.projects.map((project) => (
-                                    <div
-                                        key={project.projectId}
-                                        className="flex items-start gap-3 p-4 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)]"
+                    {githubLoading ? (
+                        <InlineLoader message="Fetching GitHub activity..." />
+                    ) : githubError ? (
+                        <GitHubError
+                            error={githubError}
+                            onRetry={retryGitHubActivity}
+                            retrying={githubLoading}
+                        />
+                    ) : (!githubActivity || !githubActivity.projects || githubActivity.projects.length === 0) ? (
+                        <EmptyState
+                            icon={GitCommit}
+                            title="No GitHub Activity Yet"
+                            description="Connect your GitHub repository and start making commits to track your development activity here."
+                            actionLabel={isOwner && !userData?.activeProject?.githubRepo ? "Start a Project" : undefined}
+                            onAction={isOwner && !userData?.activeProject?.githubRepo ? () => navigate("/projects") : undefined}
+                        >
+                            {isOwner && userData?.activeProject?.githubRepo && (
+                                <p className="text-sm text-[#A0A0A0] mt-4">
+                                    Make your first commit to see activity here
+                                </p>
+                            )}
+                        </EmptyState>
+                    ) : (
+                        <>
+                            {/* GitHub Profile Link */}
+                            {userData.socials?.github && (
+                                <div className="mb-6">
+                                    <a
+                                        href={userData.socials.github}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-[#FF6B35] hover:underline flex items-center gap-2"
                                     >
-                                        <div className="flex-shrink-0 mt-1">
-                                            <Code size={16} className="text-[#FF6B35]" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-start justify-between gap-4 mb-2">
-                                                <div className="flex-1">
-                                                    <h4 className="font-medium text-white mb-1">{project.repo}</h4>
-                                                    <p className="text-xs text-[#A0A0A0]">{project.projectName}</p>
-                                                </div>
-                                                <div className={`px-2 py-1 rounded text-xs font-medium flex-shrink-0 ${project.status === 'completed'
-                                                    ? 'bg-green-500/10 text-green-400'
-                                                    : 'bg-blue-500/10 text-blue-400'
-                                                    }`}>
-                                                    {project.status === 'completed' ? 'Completed' : 'Ongoing'}
-                                                </div>
-                                            </div>
+                                        <Github size={16} />
+                                        {userData.socials.github.replace('https://', '')}
+                                        <ExternalLink size={14} />
+                                    </a>
+                                </div>
+                            )}
 
-                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[#A0A0A0]">
-                                                <span className="flex items-center gap-1">
-                                                    <strong className="text-white">{project.totalCommits}</strong> commits
-                                                </span>
-                                                <span>•</span>
-                                                <span>{formatDuration(project.durationWeeks)}</span>
-                                                {project.firstCommitDate && (
-                                                    <>
-                                                        <span>•</span>
-                                                        <span className="text-xs">
-                                                            {formatDate(project.firstCommitDate)} → {formatDate(project.lastCommitDate)}
-                                                        </span>
-                                                    </>
+                            {/* MadeIt Projects */}
+                            <div className="mb-6">
+                                <h3 className="text-sm font-medium text-[#A0A0A0] mb-4">MadeIt Projects:</h3>
+                                <div className="space-y-3">
+                                    {githubActivity.projects.map((project) => (
+                                        <div
+                                            key={project.projectId}
+                                            className="flex items-start gap-3 p-4 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)]"
+                                        >
+                                            <div className="flex-shrink-0 mt-1">
+                                                <Code size={16} className="text-[#FF6B35]" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-start justify-between gap-4 mb-2">
+                                                    <div className="flex-1">
+                                                        <h4 className="font-medium text-white mb-1">{project.repo}</h4>
+                                                        <p className="text-xs text-[#A0A0A0]">{project.projectName}</p>
+                                                    </div>
+                                                    <div className={`px-2 py-1 rounded text-xs font-medium flex-shrink-0 ${project.status === 'completed'
+                                                        ? 'bg-green-500/10 text-green-400'
+                                                        : 'bg-blue-500/10 text-blue-400'
+                                                        }`}>
+                                                        {project.status === 'completed' ? 'Completed' : 'Ongoing'}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[#A0A0A0]">
+                                                    <span className="flex items-center gap-1">
+                                                        <strong className="text-white">{project.totalCommits}</strong> commits
+                                                    </span>
+                                                    <span>•</span>
+                                                    <span>{formatDuration(project.durationWeeks)}</span>
+                                                    {project.firstCommitDate && (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span className="text-xs">
+                                                                {formatDate(project.firstCommitDate)} → {formatDate(project.lastCommitDate)}
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </div>
+
+                                                {/* Owner-only: Red flags warning */}
+                                                {isOwner && project.redFlags && project.redFlags.length > 0 && (
+                                                    <div className="mt-3 p-2 rounded bg-yellow-500/10 border border-yellow-500/20">
+                                                        <p className="text-xs text-yellow-400 flex items-center gap-2">
+                                                            <AlertCircle size={12} />
+                                                            Quality check: {project.redFlags.join(', ').replace(/_/g, ' ')}
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {/* Owner-only: Detailed stats */}
+                                                {isOwner && (
+                                                    <div className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.08)] text-xs text-[#A0A0A0] space-y-1">
+                                                        <p>Active days: {project.activeDays}</p>
+                                                        <p>Avg: {project.commitsPerDay} commits/day · {project.commitsPerWeek} commits/week</p>
+                                                    </div>
                                                 )}
                                             </div>
-
-                                            {/* Owner-only: Red flags warning */}
-                                            {isOwner && project.redFlags && project.redFlags.length > 0 && (
-                                                <div className="mt-3 p-2 rounded bg-yellow-500/10 border border-yellow-500/20">
-                                                    <p className="text-xs text-yellow-400 flex items-center gap-2">
-                                                        <AlertCircle size={12} />
-                                                        Quality check: {project.redFlags.join(', ').replace(/_/g, ' ')}
-                                                    </p>
-                                                </div>
-                                            )}
-
-                                            {/* Owner-only: Detailed stats */}
-                                            {isOwner && (
-                                                <div className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.08)] text-xs text-[#A0A0A0] space-y-1">
-                                                    <p>Active days: {project.activeDays}</p>
-                                                    <p>Avg: {project.commitsPerDay} commits/day · {project.commitsPerWeek} commits/week</p>
-                                                </div>
-                                            )}
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Aggregated Stats */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)]">
-                                <p className="text-xs text-[#A0A0A0] mb-1">Total Commits</p>
-                                <p className="text-2xl font-semibold text-white">{githubActivity.totalCommits}</p>
-                            </div>
-                            <div className="p-4 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)]">
-                                <p className="text-xs text-[#A0A0A0] mb-1">Avg Commit Frequency</p>
-                                <p className="text-2xl font-semibold text-white">{githubActivity.avgCommitsPerWeek}/week</p>
-                            </div>
-                        </div>
-
-                        {/* Error display for owner */}
-                        {isOwner && githubActivity.errors && githubActivity.errors.length > 0 && (
-                            <div className="mt-4 p-4 rounded-lg bg-red-500/10 border border-red-500/20">
-                                <p className="text-sm text-red-400 mb-2 flex items-center gap-2">
-                                    <AlertCircle size={16} />
-                                    GitHub API Errors:
-                                </p>
-                                <ul className="text-xs text-red-300 space-y-1">
-                                    {githubActivity.errors.map((err, idx) => (
-                                        <li key={idx}>• {err.projectId}: {err.error}</li>
                                     ))}
-                                </ul>
+                                </div>
                             </div>
-                        )}
-                    </section>
-                )}
+
+                            {/* Aggregated Stats */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-4 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)]">
+                                    <p className="text-xs text-[#A0A0A0] mb-1">Total Commits</p>
+                                    <p className="text-2xl font-semibold text-white">{githubActivity.totalCommits}</p>
+                                </div>
+                                <div className="p-4 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)]">
+                                    <p className="text-xs text-[#A0A0A0] mb-1">Avg Commit Frequency</p>
+                                    <p className="text-2xl font-semibold text-white">{githubActivity.avgCommitsPerWeek}/week</p>
+                                </div>
+                            </div>
+
+                            {/* Error display for owner */}
+                            {isOwner && githubActivity.errors && githubActivity.errors.length > 0 && (
+                                <div className="mt-4 p-4 rounded-lg bg-red-500/10 border border-red-500/20">
+                                    <p className="text-sm text-red-400 mb-2 flex items-center gap-2">
+                                        <AlertCircle size={16} />
+                                        GitHub API Errors:
+                                    </p>
+                                    <ul className="text-xs text-red-300 space-y-1">
+                                        {githubActivity.errors.map((err, idx) => (
+                                            <li key={idx}>• {err.projectId}: {err.error}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </section>
 
                 {/* Loading state for GitHub */}
                 {githubLoading && (
@@ -1048,7 +1235,7 @@ export default function Portfolio() {
                         <span>•</span>
                         <a href="#" className="hover:text-white transition-colors">Report Issue</a>
                         <span>•</span>
-                        <a href="#" className="hover:text-white transition-colors">madeit.app</a>
+                        <a href="https://madeit-app.vercel.app/" target="_blank" className="hover:text-white transition-colors">MadeIt</a>
                     </div>
                 </div>
             </div>
@@ -1160,23 +1347,16 @@ export default function Portfolio() {
                             </div>
 
                             <div className="p-6 border-t border-[rgba(255,255,255,0.08)]">
-                                <button
+                                <LoadingButton
                                     onClick={handleSaveSetup}
-                                    disabled={saving}
-                                    className="w-full py-3.5 rounded-xl bg-[#FF6B35] text-white text-sm font-medium flex items-center justify-center gap-2 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 cursor-pointer"
+                                    loading={saving}
+                                    loadingText="Saving..."
+                                    variant="primary"
+                                    className="w-full"
                                 >
-                                    {saving ? (
-                                        <>
-                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                            Saving...
-                                        </>
-                                    ) : (
-                                        <>
-                                            {hasBothSocials ? "Continue to Portfolio" : "Save & View Portfolio"}
-                                            <ArrowRight size={18} />
-                                        </>
-                                    )}
-                                </button>
+                                    {hasBothSocials ? "Continue to Portfolio" : "Save & View Portfolio"}
+                                    <ArrowRight size={18} />
+                                </LoadingButton>
                             </div>
                         </motion.div>
                     </motion.div>
@@ -1316,6 +1496,40 @@ export default function Portfolio() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* SHARE PORTFOLIO MODAL */}
+            <SharePortfolioModal
+                isOpen={showShareModal}
+                onClose={() => setShowShareModal(false)}
+                username={userData?.profile?.username || ''}
+                name={userData?.name || ''}
+            />
+
+            {/* FOOTER - Trust & Authority Signal (Public View Only) */}
+            {!isOwner && (
+                <footer className="border-t border-[rgba(255,255,255,0.08)] mt-16">
+                    <div className="max-w-5xl mx-auto px-4 py-8">
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-[#A0A0A0]">
+                            <div className="flex items-center gap-2">
+                                <Rocket size={16} className="text-[#FF6B35]" />
+                                <span>
+                                    Built on <span className="text-white font-medium">MadeIt</span> · Portfolio auto-generated from verified work
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <Clock size={14} />
+                                    <span>Last updated {stats.lastUpdated}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Calendar size={14} />
+                                    <span>{workMetrics.totalActiveDays} active days</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </footer>
+            )}
         </div>
     );
 }

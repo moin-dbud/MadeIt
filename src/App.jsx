@@ -7,76 +7,79 @@ import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
 import ProjectPage from "./pages/ProjectPage";
 import Portfolio from "./pages/Portfolio";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* PUBLIC ROUTE - Only accessible when NOT logged in */}
-        <Route
-          path="/"
-          element={
-            <PublicRoute>
-              <>
-                <Navbar />
-                <Home />
-              </>
-            </PublicRoute>
-          }
-        />
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          {/* PUBLIC ROUTE - Only accessible when NOT logged in */}
+          <Route
+            path="/"
+            element={
+              <PublicRoute>
+                <>
+                  <Navbar />
+                  <Home />
+                </>
+              </PublicRoute>
+            }
+          />
 
-        {/* PROTECTED ROUTES - Only accessible when logged in */}
-        <Route
-          path="/profile-setup"
-          element={
-            <ProtectedRoute>
-              <ProfileSetup />
-            </ProtectedRoute>
-          }
-        />
+          {/* PROTECTED ROUTES - Only accessible when logged in */}
+          <Route
+            path="/profile-setup"
+            element={
+              <ProtectedRoute>
+                <ProfileSetup />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/projects"
-          element={
-            <ProtectedRoute>
-              <Projects />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/projects"
+            element={
+              <ProtectedRoute>
+                <Projects />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/projects/:projectId"
-          element={
-            <ProtectedRoute>
-              <ProjectPage />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/projects/:projectId"
+            element={
+              <ProtectedRoute>
+                <ProjectPage />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/portfolio"
-          element={
-            <ProtectedRoute>
-              <Portfolio />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/portfolio"
+            element={
+              <ProtectedRoute>
+                <Portfolio />
+              </ProtectedRoute>
+            }
+          />
 
-        {/* PUBLIC PORTFOLIO - Accessible to anyone */}
-        <Route
-          path="/portfolio/:username"
-          element={<Portfolio />}
-        />
-      </Routes>
-    </BrowserRouter>
+          {/* PUBLIC PORTFOLIO - Accessible to anyone */}
+          <Route
+            path="/portfolio/:username"
+            element={<Portfolio />}
+          />
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
