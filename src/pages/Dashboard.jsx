@@ -8,9 +8,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getMilestones } from "../config/projects.config";
 import LoadingButton from "../components/LoadingButton";
 import { PageLoader } from "../components/SkeletonLoaders";
+import RecruiterMessages from "../components/RecruiterMessages";
+import { useAuth } from "../context/AuthContext";
 
 export default function Dashboard() {
-    const user = auth.currentUser;
+    const { user, loading: authLoading } = useAuth();
     const navigate = useNavigate();
 
     const [userData, setUserData] = useState(null);
@@ -26,6 +28,11 @@ export default function Dashboard() {
     // ---- FETCH USER DATA ----
     useEffect(() => {
         const fetchUserData = async () => {
+            // Wait for auth to be ready
+            if (authLoading) {
+                return;
+            }
+
             if (!user) {
                 navigate("/");
                 return;
@@ -56,7 +63,7 @@ export default function Dashboard() {
         };
 
         fetchUserData();
-    }, [user, navigate]);
+    }, [user, authLoading, navigate]);
 
     // ---- CLOSE DROPDOWN ON OUTSIDE CLICK ----
     useEffect(() => {
@@ -183,6 +190,16 @@ export default function Dashboard() {
     };
 
     const avatarSrc = getAvatarSource();
+
+    // Show loading while auth or data is loading
+    if (authLoading || loading) {
+        return <PageLoader />;
+    }
+
+    // If no user data after loading, show nothing (will redirect)
+    if (!userData) {
+        return null;
+    }
 
     return (
         <div className="min-h-screen bg-[#0A0A0A] text-white">
@@ -382,6 +399,16 @@ export default function Dashboard() {
                             <ExternalLink size={16} strokeWidth={1.5} />
                         </button>
                     </div>
+                </motion.div>
+
+                {/* RECRUITER MESSAGES */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.3 }}
+                    className="mb-8"
+                >
+                    <RecruiterMessages />
                 </motion.div>
 
             </div>

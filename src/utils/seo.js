@@ -11,8 +11,22 @@ import { useEffect } from 'react';
  * @param {string} config.image - OG image URL
  * @param {string} config.url - Canonical URL
  * @param {string} config.type - OG type (website, profile, etc.)
+ * @param {string} config.robots - Robots meta directive
+ * @param {Object} config.structuredData - JSON-LD structured data
+ * @param {string} config.ogSiteName - OG site name
+ * @param {string} config.author - Author meta
  */
-export const useSEO = ({ title, description, image, url, type = 'website' }) => {
+export const useSEO = ({
+    title,
+    description,
+    image,
+    url,
+    type = 'website',
+    robots,
+    structuredData,
+    ogSiteName,
+    author
+}) => {
     useEffect(() => {
         // Update title
         if (title) {
@@ -37,6 +51,8 @@ export const useSEO = ({ title, description, image, url, type = 'website' }) => 
 
         // Standard meta tags
         updateMetaTag('description', description, true);
+        updateMetaTag('author', author, true);
+        updateMetaTag('robots', robots, true);
 
         // OpenGraph tags
         updateMetaTag('og:title', title);
@@ -44,6 +60,7 @@ export const useSEO = ({ title, description, image, url, type = 'website' }) => 
         updateMetaTag('og:image', image);
         updateMetaTag('og:url', url);
         updateMetaTag('og:type', type);
+        updateMetaTag('og:site_name', ogSiteName || 'MadeIt');
 
         // Twitter Card tags
         updateMetaTag('twitter:card', image ? 'summary_large_image' : 'summary', true);
@@ -62,12 +79,30 @@ export const useSEO = ({ title, description, image, url, type = 'website' }) => 
             canonical.setAttribute('href', url);
         }
 
+        // JSON-LD Structured Data
+        let structuredDataScript = document.querySelector('script[type="application/ld+json"]');
+        if (structuredData) {
+            if (!structuredDataScript) {
+                structuredDataScript = document.createElement('script');
+                structuredDataScript.setAttribute('type', 'application/ld+json');
+                document.head.appendChild(structuredDataScript);
+            }
+            structuredDataScript.textContent = JSON.stringify(structuredData);
+        } else if (structuredDataScript) {
+            // Remove if no structured data
+            structuredDataScript.remove();
+        }
+
         // Cleanup function
         return () => {
             // Reset to default on unmount
             document.title = 'MadeIt · Proof-of-Work Portfolio Platform';
+
+            // Remove structured data on unmount
+            const script = document.querySelector('script[type="application/ld+json"]');
+            if (script) script.remove();
         };
-    }, [title, description, image, url, type]);
+    }, [title, description, image, url, type, robots, structuredData, ogSiteName, author]);
 };
 
 /**
@@ -75,41 +110,96 @@ export const useSEO = ({ title, description, image, url, type = 'website' }) => 
  * 
  * @param {Object} userData - User data
  * @param {string} username - Username
+ * @param {boolean} isPublic - Whether portfolio is public
  * @returns {Object} - SEO configuration
  */
-export const getPortfolioSEO = (userData, username) => {
+export const getPortfolioSEO = (userData, username, isPublic = true) => {
+    // Portfolio not found state
     if (!userData) {
         return {
             title: 'Portfolio Not Found | MadeIt',
-            description: 'The portfolio you are looking for does not exist.',
-            url: window.location.href
+            description: 'The portfolio you are looking for does not exist or has been removed.',
+            url: window.location.href,
+            type: 'website',
+            robots: 'noindex, nofollow'
         };
     }
 
     const name = userData.name || userData.profile?.fullName || 'Developer';
-    const role = userData.portfolio?.role || 'Developer';
-    const statement = userData.portfolio?.statement || 'Building real projects and learning by doing.';
+    const bio = userData.profile?.bio || '';
+
+    // Extract role from bio or use default
+    const role = bio.split('\n')[0] || 'Developer';
+
+    // Use bio as personal statement (limit to 160 chars for meta description)
+    const statement = bio.substring(0, 160);
 
     // Count completed projects
-    const completedProjects = userData.activeProject?.completedMilestones?.length || 0;
-    const projectText = completedProjects === 1 ? '1 project' : `${completedProjects} projects`;
+    let completedCount = 0;
+    if (userData.projects) {
+        completedCount = Object.values(userData.projects).filter(p => p.completed).length;
+    }
+
+    // Generate title
+    const title = `${name} — ${role} | Proof-of-Work Portfolio`;
 
     // Generate description
-    const description = `${statement} ${completedProjects > 0 ? `${completedProjects} completed ${completedProjects === 1 ? 'project' : 'projects'}.` : ''}`.trim();
+    let description = statement;
+    if (!description) {
+        description = `View ${name}'s proof-of-work portfolio with real projects and GitHub-verified milestones.`;
+    }
+    description += ` Built with real projects, milestones, and GitHub-verified work on MadeIt.`;
+    description = description.substring(0, 160); // SEO best practice
 
-    // Get profile image
-    const image = userData.photoURL || userData.profile?.photoURL || '';
-
-    // Generate URL
+    // Get profile image (use absolute URL)
     const baseUrl = window.location.origin;
+    let image = '';
+    if (userData.profile?.photoURL) {
+        // If it's a data URL or absolute URL, use as is
+        if (userData.profile.photoURL.startsWith('data:') || userData.profile.photoURL.startsWith('http')) {
+            image = userData.profile.photoURL;
+        } else {
+            image = `${baseUrl}${userData.profile.photoURL}`;
+        }
+    } else {
+        // Fallback to MadeIt OG image
+        image = `${baseUrl}/madeit-og.png`;
+    }
+
+    // Generate canonical URL
     const url = `${baseUrl}/portfolio/${username}`;
 
+    // Social links for structured data
+    const sameAs = [];
+    if (userData.socials?.github) sameAs.push(userData.socials.github);
+    if (userData.socials?.linkedin) sameAs.push(userData.socials.linkedin);
+    if (userData.socials?.twitter) sameAs.push(userData.socials.twitter);
+
+    // Robots meta
+    const robots = isPublic ? 'index, follow' : 'noindex, nofollow';
+
     return {
-        title: `${name} · Proof-of-Work Portfolio | MadeIt`,
-        description: description.substring(0, 160), // Limit to 160 chars for SEO
+        title,
+        description,
         image,
         url,
-        type: 'profile'
+        type: 'profile',
+        robots,
+        // Structured data (JSON-LD)
+        structuredData: {
+            '@context': 'https://schema.org',
+            '@type': 'Person',
+            name: name,
+            jobTitle: role,
+            url: url,
+            image: image,
+            sameAs: sameAs,
+            description: statement
+        },
+        // OpenGraph specific
+        ogSiteName: 'MadeIt',
+        // Additional meta
+        author: name
     };
 };
 

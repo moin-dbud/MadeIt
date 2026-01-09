@@ -18,9 +18,11 @@ import { handleAuthError } from "../utils/authErrorHandler";
 import { calculateWorkDisciplineMetrics, getActivityTimeline } from "../utils/activityTracking";
 import { getUserByUsername, filterPublicUserData } from "../utils/publicPortfolio";
 import SharePortfolioModal from "../components/SharePortfolioModal";
+import ContactCandidateModal from "../components/ContactCandidateModal";
 import { useSEO, getPortfolioSEO, trackPortfolioView } from "../utils/seo";
 import { debugListAllUsernames } from "../utils/debug";
 import { useAuth } from "../context/AuthContext";
+import { generatePortfolioPDF } from "../utils/pdfExport";
 
 export default function Portfolio() {
     const { username } = useParams();
@@ -52,6 +54,7 @@ export default function Portfolio() {
         hideLearningProjects: false,
         showCommitCounts: true,
         requireLoginForDetails: false,
+        allowRecruiterContact: true, // Allow recruiters to contact via MadeIt
     });
 
     // UI state
@@ -76,6 +79,8 @@ export default function Portfolio() {
 
     // Share modal
     const [showShareModal, setShowShareModal] = useState(false);
+    const [showContactModal, setShowContactModal] = useState(false);
+    const [generatingPDF, setGeneratingPDF] = useState(false);
 
     // Portfolio not found
     const [portfolioNotFound, setPortfolioNotFound] = useState(false);
@@ -285,9 +290,56 @@ export default function Portfolio() {
         setWorkMetrics(metrics);
     }, [userData, githubActivity]); // Recalculate when userData or GitHub activity changes
 
+    // ---- HANDLE PDF DOWNLOAD ----
+    const handleDownloadPDF = async () => {
+        if (!userData) return;
+
+        setGeneratingPDF(true);
+
+        try {
+            // Get all completed projects
+            const allProjects = getAllProjects();
+            const completedProjects = allProjects.filter(project => {
+                const userProject = userData.projects?.[project.id];
+                return userProject?.completed && !project.isDraft;
+            }).map(project => ({
+                ...project,
+                ...userData.projects[project.id],
+                milestones: getMilestones(project.id).filter(m =>
+                    userData.projects?.[project.id]?.milestones?.[m.id]?.completed
+                )
+            }));
+
+            // Extract skills from completed projects
+            const skills = new Set();
+            completedProjects.forEach(project => {
+                if (project.techStack) {
+                    project.techStack.forEach(tech => skills.add(tech));
+                }
+            });
+
+            // Generate PDF
+            generatePortfolioPDF(
+                userData,
+                completedProjects,
+                Array.from(skills),
+                workMetrics
+            );
+
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Failed to generate PDF. Please try again.');
+        } finally {
+            setGeneratingPDF(false);
+        }
+    };
+
     // ---- SEO & ANALYTICS ----
     // Generate SEO config based on userData
-    const seoConfig = userData ? getPortfolioSEO(userData, username || userData.profile?.username) : {};
+    const isPublic = portfolioSettings.publicPortfolio !== false; // Default to true
+    const seoConfig = userData
+        ? getPortfolioSEO(userData, username || userData.profile?.username, isPublic)
+        : {};
 
     // Apply SEO meta tags
     useSEO(seoConfig);
@@ -691,19 +743,14 @@ export default function Portfolio() {
                                         LinkedIn
                                     </a>
                                 )}
-                                {(portfolioSettings.showEmail || isOwner) && (
-                                    <a
-                                        href={`mailto:${user?.email || ''}`}
-                                        className="px-4 py-2 rounded-lg border border-[rgba(255,255,255,0.1)] text-sm font-medium flex items-center gap-2 hover:bg-[rgba(255,255,255,0.05)] transition-colors"
-                                    >
-                                        <Mail size={16} />
-                                        Email
-                                    </a>
-                                )}
                                 {portfolioSettings.allowPdfDownload && (
-                                    <button className="px-4 py-2 rounded-lg bg-[#FF6B35] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#FF6B35]/90 transition-colors">
+                                    <button
+                                        onClick={handleDownloadPDF}
+                                        disabled={generatingPDF}
+                                        className="px-4 py-2 rounded-lg bg-[#FF6B35] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#FF6B35]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
                                         <Download size={16} />
-                                        Download PDF
+                                        {generatingPDF ? 'Generating PDF...' : 'Download PDF'}
                                     </button>
                                 )}
                                 {isOwner && (
@@ -713,6 +760,15 @@ export default function Portfolio() {
                                     >
                                         <Share2 size={16} />
                                         Share Portfolio
+                                    </button>
+                                )}
+                                {!isOwner && portfolioSettings.allowRecruiterContact && (
+                                    <button
+                                        onClick={() => setShowContactModal(true)}
+                                        className="px-4 py-2 rounded-lg bg-[#FF6B35] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#FF6B35]/90 transition-colors"
+                                    >
+                                        <Mail size={16} />
+                                        Contact Candidate
                                     </button>
                                 )}
                             </div>
@@ -1527,6 +1583,23 @@ export default function Portfolio() {
                 username={userData?.profile?.username || ''}
                 name={userData?.name || ''}
             />
+
+            {/* CONTACT CANDIDATE MODAL */}
+            <ContactCandidateModal
+                isOpen={showContactModal}
+                onClose={() => setShowContactModal(false)}
+                portfolioOwnerId={userData?.uid || ''}
+                candidateName={userData?.name || userData?.profile?.fullName || 'this candidate'}
+            />
+
+            {/* TRUST SIGNAL - Contact Privacy */}
+            {!isOwner && portfolioSettings.allowRecruiterContact && (
+                <div className="max-w-5xl mx-auto px-4 mt-8 mb-4">
+                    <p className="text-xs text-center text-[#A0A0A0]">
+                        🔒 Contact requests are delivered securely via MadeIt
+                    </p>
+                </div>
+            )}
 
             {/* FOOTER - Trust & Authority Signal (Public View Only) */}
             {!isOwner && (

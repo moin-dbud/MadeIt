@@ -5,8 +5,9 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import { useNavigate } from "react-router-dom";
 import { GraduationCap, Award, Rocket, ArrowRight } from "lucide-react";
-import { Github, Linkedin, Twitter, Check, PartyPopper } from "lucide-react";
+import { Github, Linkedin, Twitter, Check, PartyPopper, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { isUsernameAvailable } from "../utils/publicPortfolio";
 
 export default function ProfileSetup() {
   const user = auth.currentUser;
@@ -17,12 +18,15 @@ export default function ProfileSetup() {
   const [consentGiven, setConsentGiven] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [usernameChecking, setUsernameChecking] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState(null); // null = not checked, true = available, false = taken
 
   // ---- FORM DATA ----
   const [formData, setFormData] = useState({
     profile: {
       fullName: "",
       username: "",
+      phone: "",
       bio: "",
       dob: {
         day: "",
@@ -59,6 +63,36 @@ export default function ProfileSetup() {
     if (!user) navigate("/");
   }, [user, navigate]);
 
+  // ---- USERNAME AVAILABILITY CHECK ----
+  useEffect(() => {
+    const checkUsername = async () => {
+      const username = formData.profile.username.trim();
+
+      // Don't check if empty or too short
+      if (!username || username.length < 3) {
+        setUsernameAvailable(null);
+        return;
+      }
+
+      setUsernameChecking(true);
+
+      try {
+        const available = await isUsernameAvailable(username);
+        setUsernameAvailable(available);
+      } catch (error) {
+        console.error("Error checking username:", error);
+        setUsernameAvailable(null);
+      } finally {
+        setUsernameChecking(false);
+      }
+    };
+
+    // Debounce: wait 500ms after user stops typing
+    const timeoutId = setTimeout(checkUsername, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.profile.username]);
+
 
   // ---- HELPERS ----
   const updateFirestore = async (payload) => {
@@ -79,6 +113,13 @@ export default function ProfileSetup() {
     if (step === 1) {
       if (!formData.profile.fullName.trim()) newErrors.fullName = true;
       if (!formData.profile.username.trim()) newErrors.username = true;
+
+      // Check if username is available
+      if (formData.profile.username.trim() && usernameAvailable === false) {
+        newErrors.username = true;
+        newErrors.usernameTaken = true;
+      }
+
       if (!formData.profile.bio.trim()) newErrors.bio = true;
       if (!formData.profile.dob.day || !formData.profile.dob.month || !formData.profile.dob.year) {
         newErrors.dob = true;
@@ -309,20 +350,66 @@ export default function ProfileSetup() {
                     <div className="relative gap-2">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm" style={{ color: "#A0A0A0" }}>@</span>
                       <input
-                        className={`w-full px-8 py-3 rounded-xl text-sm font-normal outline-none transition-all duration-200 bg-[#ffffff0d] focus:bg-[rgba(255,255,255,0.1)] text-white placeholder:text-[#A0A0A0] border-1 border-solid ${errors.username ? 'border-red-500' : 'border-[rgba(255,255,255,0.08)]'}`}
-                        maxLength={160}
+                        className={`w-full px-8 py-3 rounded-xl text-sm font-normal outline-none transition-all duration-200 bg-[#ffffff0d] focus:bg-[rgba(255,255,255,0.1)] text-white placeholder:text-[#A0A0A0] border-1 border-solid ${errors.username
+                          ? 'border-red-500'
+                          : usernameAvailable === true
+                            ? 'border-green-500'
+                            : 'border-[rgba(255,255,255,0.08)]'
+                          }`}
+                        maxLength={20}
                         placeholder="johndoe"
                         value={formData.profile.username}
                         onChange={(e) => {
+                          const lowercaseValue = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
                           setFormData((p) => ({
                             ...p,
-                            profile: { ...p.profile, username: e.target.value },
+                            profile: { ...p.profile, username: lowercaseValue },
                           }));
-                          if (errors.username) setErrors(prev => ({ ...prev, username: false }));
+                          if (errors.username) setErrors(prev => ({ ...prev, username: false, usernameTaken: false }));
                         }}
                       />
+                      {/* Availability Indicator */}
+                      {formData.profile.username.length >= 3 && (
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                          {usernameChecking ? (
+                            <div className="w-4 h-4 border-2 border-[#A0A0A0] border-t-transparent rounded-full animate-spin"></div>
+                          ) : usernameAvailable === true ? (
+                            <Check size={18} className="text-green-500" />
+                          ) : usernameAvailable === false ? (
+                            <X size={18} className="text-red-500" />
+                          ) : null}
+                        </div>
+                      )}
                     </div>
+                    {/* Helper Text */}
+                    {formData.profile.username.length >= 3 && usernameAvailable === false && (
+                      <p className="text-xs text-red-500 mt-1">⚠️ Username is already taken. Try another one.</p>
+                    )}
+                    {formData.profile.username.length >= 3 && usernameAvailable === true && (
+                      <p className="text-xs text-green-500 mt-1">✓ Username is available!</p>
+                    )}
+                    {formData.profile.username.length < 3 && formData.profile.username.length > 0 && (
+                      <p className="text-xs text-[#A0A0A0] mt-1">Lowercase letters, numbers, hyphens, and underscores only (min 3 characters)</p>
+                    )}
+                    {formData.profile.username.length === 0 && (
+                      <p className="text-xs text-[#A0A0A0] mt-1">Lowercase letters, numbers, hyphens, and underscores only</p>
+                    )}
+                  </div>
 
+                  <div className="animate-field animation-delay-0.175s">
+                    <label className="block text-xs font-medium mb-2 text-[#A0A0A0]">Phone Number</label>
+                    <input
+                      type="tel"
+                      className="w-full px-4 py-3 rounded-xl text-sm font-normal outline-none transition-all duration-200 bg-[#ffffff0d] focus:bg-[rgba(255,255,255,0.1)] text-white placeholder:text-[#A0A0A0] border-1 border-solid border-[rgba(255,255,255,0.08)]"
+                      placeholder="+1 234 567 8900"
+                      value={formData.profile.phone}
+                      onChange={(e) => {
+                        setFormData((p) => ({
+                          ...p,
+                          profile: { ...p.profile, phone: e.target.value },
+                        }));
+                      }}
+                    />
                   </div>
 
                   <div className="animate-field animation-delay-0.2s">
