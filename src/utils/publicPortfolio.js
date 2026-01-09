@@ -34,6 +34,15 @@ export const getUserByUsername = async (username) => {
         };
     } catch (error) {
         console.error("Error fetching user by username:", error);
+
+        // Check if it's an index error
+        if (error.code === 'failed-precondition' || error.message?.includes('index')) {
+            console.error("🔥 FIRESTORE INDEX REQUIRED!");
+            console.error("Please create an index for this query.");
+            console.error("The error message should contain a link to create the index.");
+            console.error("Error details:", error.message);
+        }
+
         throw error;
     }
 };

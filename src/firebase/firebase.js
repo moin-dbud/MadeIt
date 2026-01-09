@@ -12,6 +12,15 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+// Validate Firebase config
+const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+const missingKeys = requiredKeys.filter(key => !firebaseConfig[key]);
+
+if (missingKeys.length > 0) {
+  console.error('🔥 FIREBASE CONFIG ERROR: Missing environment variables:', missingKeys.map(k => `VITE_FIREBASE_${k.toUpperCase()}`));
+  console.error('Please add these variables to Vercel Environment Variables');
+}
+
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);

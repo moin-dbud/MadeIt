@@ -19,10 +19,12 @@ import { calculateWorkDisciplineMetrics, getActivityTimeline } from "../utils/ac
 import { getUserByUsername, filterPublicUserData } from "../utils/publicPortfolio";
 import SharePortfolioModal from "../components/SharePortfolioModal";
 import { useSEO, getPortfolioSEO, trackPortfolioView } from "../utils/seo";
+import { debugListAllUsernames } from "../utils/debug";
+import { useAuth } from "../context/AuthContext";
 
 export default function Portfolio() {
     const { username } = useParams();
-    const user = auth.currentUser;
+    const { user } = useAuth(); // Use AuthContext instead of auth.currentUser
     const navigate = useNavigate();
 
     const [userData, setUserData] = useState(null);
@@ -83,21 +85,42 @@ export default function Portfolio() {
         const fetchUserData = async () => {
             // PUBLIC PORTFOLIO VIEW (username in URL, no auth required)
             if (!user && username) {
+                console.log('🌐 PUBLIC PORTFOLIO MODE');
+                console.log('📍 Username from URL:', username);
+                console.log('🔓 User auth state:', user ? 'Logged in' : 'Not logged in');
+
                 try {
+                    console.log('🔍 Fetching user by username:', username);
                     const publicUser = await getUserByUsername(username);
 
                     if (!publicUser) {
+                        console.log('❌ No user found with username:', username);
                         setPortfolioNotFound(true);
                         setLoading(false);
                         return;
                     }
 
+                    console.log('✅ User found:', publicUser.uid);
+                    console.log('📦 User data keys:', Object.keys(publicUser));
+
                     // Filter sensitive data for public view
                     const filteredData = filterPublicUserData(publicUser);
+                    console.log('🔒 Data filtered for public view');
+
                     setUserData(filteredData);
                     setIsOwner(false);
+                    console.log('✅ Public portfolio loaded successfully');
                 } catch (error) {
-                    console.error("Error fetching public portfolio:", error);
+                    console.error("❌ Error fetching public portfolio:", error);
+                    console.error("Error code:", error.code);
+                    console.error("Error message:", error.message);
+
+                    if (error.code === 'permission-denied') {
+                        console.error('🔒 PERMISSION DENIED - Check Firestore Security Rules!');
+                    } else if (error.code === 'unavailable') {
+                        console.error('🌐 FIREBASE UNAVAILABLE - Check internet connection and Firebase config');
+                    }
+
                     setPortfolioNotFound(true);
                 } finally {
                     setLoading(false);
