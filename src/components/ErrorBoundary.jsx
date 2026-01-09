@@ -44,7 +44,7 @@ class ErrorBoundary extends React.Component {
             `Error: ${this.state.error?.message || "Unknown error"}\n\n` +
             `Please describe what you were doing when this happened:\n\n`
         );
-        window.open(`mailto:support@madeit.app?subject=${subject}&body=${body}`, '_blank');
+        window.open(`mailto:moinsheikh1303@gmail.com?subject=${subject}&body=${body}`, '_blank');
     };
 
     render() {

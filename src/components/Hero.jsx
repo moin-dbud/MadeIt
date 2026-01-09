@@ -5,7 +5,7 @@ import { signInWithGoogle } from '../firebase/auth';
 import { Rocket } from 'lucide-react';
 
 export const Hero = () => {
-    const { user } = useAuth();
+  const { user } = useAuth();
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-28 pb-10">
       <div className="max-w-5xl mx-auto text-center">
@@ -50,12 +50,12 @@ export const Hero = () => {
           transition={{ duration: 0.6, delay: 0.5 }}
           className="flex items-center justify-center gap-4 flex-wrap"
         >
-          <button onClick={signInWithGoogle}  className="px-8 py-4 bg-[#FF6B35] hover:bg-[#ff7d4d] cursor-pointer text-white font-semibold rounded-full transition-colors">
+          <button onClick={signInWithGoogle} className="px-8 py-4 bg-[#FF6B35] hover:bg-[#ff7d4d] cursor-pointer text-white font-semibold rounded-full transition-colors">
             Start Building
           </button>
-          <button className="px-8 py-4 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-full border border-white/10 transition-colors">
+          <a href="#how" className="px-8 py-4 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-full border border-white/10 transition-colors inline-block">
             See How It Works
-          </button>
+          </a>
         </motion.div>
       </div>
     </section>

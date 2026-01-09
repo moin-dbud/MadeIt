@@ -23,10 +23,11 @@ import { useSEO, getPortfolioSEO, trackPortfolioView } from "../utils/seo";
 import { debugListAllUsernames } from "../utils/debug";
 import { useAuth } from "../context/AuthContext";
 import { generatePortfolioPDF } from "../utils/pdfExport";
+import DetailedProjectCard from "../components/DetailedProjectCard";
 
 export default function Portfolio() {
     const { username } = useParams();
-    const { user } = useAuth(); // Use AuthContext instead of auth.currentUser
+    const { user } = useAuth();
     const navigate = useNavigate();
 
     const [userData, setUserData] = useState(null);
@@ -505,8 +506,8 @@ export default function Portfolio() {
     const getSkills = () => {
         const skillsMap = new Map(); // skill -> { category, projects: Set }
 
-        // Only process if user has active project with completed tasks
-        if (!userData?.activeProject?.id || !userData?.activeProject?.completedTasks?.length) {
+        // Check if user has active project
+        if (!userData?.activeProject?.id) {
             return {
                 frontend: [],
                 backend: [],
@@ -527,14 +528,27 @@ export default function Portfolio() {
 
         const milestones = getMilestones(userData.activeProject.id);
         const completedTasks = userData.activeProject.completedTasks || [];
+        const completedMilestones = userData.activeProject.completedMilestones || [];
 
         // Check each milestone for completion
         milestones.forEach(milestone => {
-            const milestoneTasks = milestone.tasks.map(t => `${milestone.milestoneId}-${t.taskId}`);
-            const completedMilestoneTasks = milestoneTasks.filter(taskId => completedTasks.includes(taskId));
+            let isMilestoneCompleted = false;
 
-            // Only add skills if ALL tasks in milestone are completed
-            if (completedMilestoneTasks.length === milestoneTasks.length && milestoneTasks.length > 0) {
+            // Check if milestone is completed (two ways to determine this):
+            // 1. For owner view: Check if all tasks in milestone are completed
+            if (completedTasks.length > 0) {
+                const milestoneTasks = milestone.tasks.map(t => `${milestone.milestoneId}-${t.taskId}`);
+                const completedMilestoneTasks = milestoneTasks.filter(taskId => completedTasks.includes(taskId));
+                isMilestoneCompleted = completedMilestoneTasks.length === milestoneTasks.length && milestoneTasks.length > 0;
+            }
+
+            // 2. For public view: Check if milestone ID is in completedMilestones array
+            if (!isMilestoneCompleted && completedMilestones.length > 0) {
+                isMilestoneCompleted = completedMilestones.includes(milestone.milestoneId);
+            }
+
+            // Only add skills if milestone is completed
+            if (isMilestoneCompleted) {
                 // Get skills from this completed milestone
                 const milestoneSkills = milestone.skills || project.skills || [];
 
@@ -591,19 +605,42 @@ export default function Portfolio() {
             const projectConfig = getProjectById(userData.activeProject.id);
             if (projectConfig) {
                 const milestones = getMilestones(userData.activeProject.id);
-                const totalTasks = milestones.reduce((sum, m) => sum + m.tasks.length, 0);
-                const completedTasks = userData.activeProject.completedTasks?.length || 0;
-                const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+                const completedMilestones = userData.activeProject.completedMilestones || [];
+
+                // Calculate progress
+                const totalMilestones = milestones.length;
+                const completedCount = completedMilestones.length;
+                const progress = totalMilestones > 0 ? Math.round((completedCount / totalMilestones) * 100) : 0;
+
+                // Get tech stack from completed milestones
+                const techStack = new Set();
+                milestones.forEach(milestone => {
+                    if (milestone.skills) {
+                        milestone.skills.forEach(skill => techStack.add(skill));
+                    }
+                });
 
                 projects.push({
                     ...projectConfig,
-                    status: progress === 100 ? 'completed' : 'in-progress',
-                    progress,
-                    duration: projectConfig.estimatedDuration,
+                    id: userData.activeProject.id,
+                    name: projectConfig.name,
+                    category: projectConfig.category,
+                    description: projectConfig.overview,
                     githubRepo: userData.activeProject.githubRepo,
-                    completedTasks,
-                    totalTasks,
-                    milestones
+                    liveUrl: userData.activeProject.liveUrl,
+                    startedAt: userData.activeProject.startedAt,
+                    completedAt: userData.activeProject.completedAt,
+                    progress,
+                    milestones: milestones.map(m => ({
+                        id: m.milestoneId,
+                        name: m.title,
+                        tasks: m.tasks
+                    })),
+                    completedMilestones,
+                    completedTasks: userData.activeProject.completedTasks || [],
+                    submissions: userData.activeProject.submissions || {},
+                    techStack: Array.from(techStack),
+                    verified: userData.activeProject.verified || false
                 });
             }
         }
@@ -660,7 +697,7 @@ export default function Portfolio() {
     return (
         <div className="min-h-screen bg-[#0A0A0A] text-white">
             {/* HERO SECTION - ABOVE THE FOLD */}
-            <div className="border-b border-[rgba(255,255,255,0.08)] sticky top-0 bg-[#0A0A0A] z-40 md:static">
+            <div className="border-b border-[rgba(255,255,255,0.08)]  top-0 bg-[#0A0A0A] z-40 md:static">
                 <div className="max-w-5xl mx-auto px-4 py-8 md:py-16">
                     <div className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8">
                         {/* Profile Photo */}
@@ -881,148 +918,18 @@ export default function Portfolio() {
                             onAction={isOwner ? () => navigate("/projects") : undefined}
                         />
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {projects.map(project => {
-                                const isExpanded = expandedProjects[project.projectId];
-
-                                return (
-                                    <motion.div
-                                        key={project.projectId}
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        className="rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] overflow-hidden"
-                                    >
-                                        {/* Project Card */}
-                                        <div className="p-6">
-                                            <div className="flex items-start justify-between mb-3">
-                                                <h3 className="text-lg font-semibold">{project.name}</h3>
-                                                <div className={`px-2 py-1 rounded text-xs font-medium ${project.status === 'completed'
-                                                    ? 'bg-green-500/10 text-green-400'
-                                                    : 'bg-blue-500/10 text-blue-400'
-                                                    }`}>
-                                                    {project.status === 'completed' ? '✓ Completed' : `🔄 ${project.progress}%`}
-                                                </div>
-                                            </div>
-
-                                            <p className="text-sm text-[#A0A0A0] mb-4">
-                                                📅 {project.duration}
-                                            </p>
-
-                                            {/* Tech Stack */}
-                                            <div className="flex flex-wrap gap-2 mb-4">
-                                                {project.skills.slice(0, 4).map(skill => (
-                                                    <span
-                                                        key={skill}
-                                                        className="px-2 py-1 rounded bg-[rgba(255,255,255,0.05)] text-xs"
-                                                    >
-                                                        {skill}
-                                                    </span>
-                                                ))}
-                                                {project.skills.length > 4 && (
-                                                    <span className="px-2 py-1 rounded bg-[rgba(255,255,255,0.05)] text-xs">
-                                                        +{project.skills.length - 4} more
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {/* Links */}
-                                            <div className="flex gap-2 mb-4">
-                                                {project.githubRepo && (
-                                                    <a
-                                                        href={project.githubRepo}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="flex-1 px-3 py-2 rounded-lg border border-[rgba(255,255,255,0.1)] text-sm font-medium flex items-center justify-center gap-2 hover:bg-[rgba(255,255,255,0.05)] transition-colors"
-                                                    >
-                                                        <Github size={14} />
-                                                        GitHub
-                                                    </a>
-                                                )}
-                                                <button
-                                                    onClick={() => navigate(`/projects/${project.projectId}`)}
-                                                    className="flex-1 px-3 py-2 rounded-lg bg-[#FF6B35] text-white text-sm font-medium flex items-center justify-center gap-2 hover:bg-[#FF6B35]/90 transition-colors"
-                                                >
-                                                    <ExternalLink size={14} />
-                                                    View
-                                                </button>
-                                            </div>
-
-                                            {/* View Details Toggle */}
-                                            <button
-                                                onClick={() => toggleProject(project.projectId)}
-                                                className="w-full py-2 text-sm text-[#FF6B35] hover:underline flex items-center justify-center gap-2"
-                                            >
-                                                {isExpanded ? 'Hide Details' : 'View Details'}
-                                                {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                            </button>
-                                        </div>
-
-                                        {/* Expanded Details */}
-                                        <AnimatePresence>
-                                            {isExpanded && (
-                                                <motion.div
-                                                    initial={{ height: 0, opacity: 0 }}
-                                                    animate={{ height: "auto", opacity: 1 }}
-                                                    exit={{ height: 0, opacity: 0 }}
-                                                    transition={{ duration: 0.3 }}
-                                                    className="border-t border-[rgba(255,255,255,0.08)]"
-                                                >
-                                                    <div className="p-6 space-y-4">
-                                                        {/* Overview */}
-                                                        <div>
-                                                            <h4 className="text-sm font-semibold mb-2">Overview</h4>
-                                                            <p className="text-sm text-[#A0A0A0]">{project.fullOverview}</p>
-                                                        </div>
-
-                                                        {/* Milestones */}
-                                                        <div>
-                                                            <h4 className="text-sm font-semibold mb-2">
-                                                                Milestones ({project.milestones.length})
-                                                            </h4>
-                                                            <div className="space-y-2">
-                                                                {project.milestones.map((milestone, idx) => {
-                                                                    const milestoneTasks = milestone.tasks.map(t => `${milestone.milestoneId}-${t.taskId}`);
-                                                                    const completed = milestoneTasks.filter(taskId =>
-                                                                        userData.activeProject?.completedTasks?.includes(taskId)
-                                                                    ).length;
-                                                                    const isComplete = completed === milestoneTasks.length;
-
-                                                                    return (
-                                                                        <div key={milestone.milestoneId} className="flex items-center gap-2 text-sm">
-                                                                            {isComplete ? (
-                                                                                <CheckCircle2 size={16} className="text-green-400" />
-                                                                            ) : (
-                                                                                <div className="w-4 h-4 rounded-full border-2 border-[rgba(255,255,255,0.2)]"></div>
-                                                                            )}
-                                                                            <span className={isComplete ? 'text-white' : 'text-[#A0A0A0]'}>
-                                                                                {milestone.title}
-                                                                            </span>
-                                                                            <span className="text-xs text-[#A0A0A0]">
-                                                                                ({completed}/{milestoneTasks.length})
-                                                                            </span>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Proof of Work */}
-                                                        <div>
-                                                            <h4 className="text-sm font-semibold mb-2">Proof of Work</h4>
-                                                            <div className="space-y-1 text-sm text-[#A0A0A0]">
-                                                                <p>📊 {project.completedTasks}/{project.totalTasks} tasks completed</p>
-                                                                {portfolioSettings.showCommitCounts && project.githubRepo && (
-                                                                    <p>💻 GitHub repository linked</p>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </motion.div>
-                                );
-                            })}
+                        <div className="space-y-6">
+                            {projects.map(project => (
+                                <DetailedProjectCard
+                                    key={project.id || project.projectId}
+                                    project={project}
+                                    isOwner={isOwner}
+                                    onSubmitMilestone={(milestone) => {
+                                        // Navigate to project page to submit milestone
+                                        navigate(`/project/${project.id}`);
+                                    }}
+                                />
+                            ))}
                         </div>
                     )}
                 </section>

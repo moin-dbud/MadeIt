@@ -97,6 +97,30 @@ export default function Dashboard() {
         }
     };
 
+    // ---- FEEDBACK HANDLERS ----
+    const handleFeedbackSubmit = async (feedbackText) => {
+        try {
+            await submitFeedback(user.uid, {
+                type: feedbackType,
+                text: feedbackText,
+                projectId: feedbackContext.projectId,
+                milestoneId: feedbackContext.milestoneId
+            });
+
+            console.log('✅ Feedback submitted successfully');
+            setShowFeedbackModal(false);
+        } catch (error) {
+            console.error('Error submitting feedback:', error);
+        }
+    };
+
+    const handleFeedbackDismiss = async () => {
+        if (feedbackType && user) {
+            await dismissFeedbackPrompt(user.uid, feedbackType);
+        }
+        setShowFeedbackModal(false);
+    };
+
     // ---- OPEN MANAGE ACCOUNT MODAL ----
     const openManageAccount = () => {
         setModalData({
@@ -385,6 +409,7 @@ export default function Dashboard() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: 0.3 }}
+                    className="mb-8"
                 >
                     <div className="rounded-xl p-6 border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] flex items-center justify-between">
                         <div>

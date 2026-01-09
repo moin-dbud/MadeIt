@@ -42,7 +42,7 @@ export const ProblemSolution = () => {
             <h2 className="text-4xl font-bold text-white leading-tight">MadeIt makes you finish.</h2>
             <div className="space-y-4">
               <p className="text-lg text-gray-300">Breaks work into milestones.</p>
-              <p className="text-lg text-gray-300">Forces completion.</p>
+              <p className="text-lg text-gray-300">Guides you through completion.</p>
               <p className="text-lg text-gray-300">Generates proof automatically.</p>
             </div>
           </motion.div>

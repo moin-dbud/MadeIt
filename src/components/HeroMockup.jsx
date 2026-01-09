@@ -1,12 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle, Clock, TrendingUp } from 'lucide-react';
-import { portfolioMockData } from '../mock';
+import { Github, Linkedin, Download, Code, Rocket, Calendar, Flame, Clock } from 'lucide-react';
 
 export const HeroMockup = () => {
-  const { user, projects, recentActivity, skills } = portfolioMockData;
-  const displayedProjects = projects.slice(0, 2);
-
   return (
     <section id="portfolio" className="relative py-20 px-6">
       <div className="max-w-5xl mx-auto">
@@ -15,128 +11,154 @@ export const HeroMockup = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-3xl p-8 shadow-2xl"
+          className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
         >
-          {/* User Identity */}
-          <div className="flex items-center justify-between mb-8 pb-8 border-b flex-col border-white/10">
-            <div className="flex items-center gap-4">
-              <img
-                src={user.avatar}
-                alt={user.name}
-                className="w-16 h-16 rounded-full border-2 border-white/20"
-              />
-              <div>
-                <h3 className="text-2xl w-full font-bold text-white">{user.name}</h3>
-                <p className="text-gray-400">{user.role}</p>
+          {/* HERO SECTION - Profile Header */}
+          <div className="border-b border-white/10 bg-gradient-to-b from-white/5 to-transparent">
+            <div className="p-8">
+              <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-6">
+                {/* Profile Photo */}
+                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-4 border-white/10 flex-shrink-0 bg-[rgba(255,107,53,0.2)] flex items-center justify-center">
+                  <span className="text-[#FF6B35] font-bold text-3xl">YN</span>
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 text-center md:text-left">
+                  <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">
+                    Your Name
+                  </h1>
+                  <p className="text-lg md:text-xl text-[#FF6B35] mb-3">
+                    Developer
+                  </p>
+                  <p className="text-sm text-gray-400 max-w-2xl">
+                    Building real products. Currently focused on frontend architecture and scalable APIs.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-6">
+                <button className="px-4 py-2 rounded-lg border border-white/10 text-sm font-medium flex items-center gap-2 hover:bg-white/5 transition-colors">
+                  <Github size={16} />
+                  GitHub
+                </button>
+                <button className="px-4 py-2 rounded-lg border border-white/10 text-sm font-medium flex items-center gap-2 hover:bg-white/5 transition-colors">
+                  <Linkedin size={16} />
+                  LinkedIn
+                </button>
+                <button className="px-4 py-2 rounded-lg bg-[#FF6B35] hover:bg-[#ff7d4d] text-white text-sm font-medium flex items-center gap-2 transition-colors">
+                  <Download size={16} />
+                  Download PDF
+                </button>
+              </div>
+
+              {/* Stats Line */}
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm text-gray-400">
+                <div className="flex items-center gap-1.5">
+                  <Rocket size={14} className="text-[#FF6B35]" />
+                  <span>0 Projects</span>
+                </div>
+                <span>•</span>
+                <div className="flex items-center gap-1.5">
+                  <Calendar size={14} className="text-[#FF6B35]" />
+                  <span>2 Active Days</span>
+                </div>
+                <span>•</span>
+                <div className="flex items-center gap-1.5">
+                  <Clock size={14} className="text-[#FF6B35]" />
+                  <span>Updated Today</span>
+                </div>
               </div>
             </div>
-            <div className="px-4 py-2 mt-6 bg-[#4A7BFF]/20 border border-[#4A7BFF]/30 rounded-full">
-              <span className="text-sm text-[#4A7BFF] font-medium">{user.status}</span>
+          </div>
+
+          {/* MAIN CONTENT */}
+          <div className="p-8 space-y-8">
+            {/* SKILLS SECTION */}
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight mb-4">Skills Proven Through Work</h2>
+              <div className="p-12 rounded-xl bg-white/5 border border-white/10 text-center">
+                <div className="w-12 h-12 rounded-full bg-[rgba(255,107,53,0.1)] flex items-center justify-center mx-auto mb-3">
+                  <Code size={24} className="text-[#FF6B35]" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No Skills Unlocked Yet</h3>
+                <p className="text-sm text-gray-400 max-w-md mx-auto">
+                  Complete milestones in your projects to unlock and showcase skills you've proven through real work.
+                </p>
+              </div>
             </div>
-          </div>
 
-          {/* Project Cards */}
-          <div className="space-y-4 mb-8">
-            <h4 className="text-lg font-semibold text-white mb-4">Active Projects</h4>
-            {displayedProjects.map((project, index) => (
-              <motion.div
-                key={project.id}
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                whileHover={{ scale: 1.02, backgroundColor: 'rgba(255, 255, 255, 0.08)' }}
-                className="p-6 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl cursor-pointer transition-all"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h5 className="text-xl font-semibold text-white mb-1">{project.title}</h5>
-                    <p className="text-sm text-gray-400">{project.category}</p>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-400">
-                    <Clock className="w-4 h-4" />
-                    <span>{project.daysActive} days</span>
-                  </div>
+            {/* PROJECTS SECTION */}
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight mb-4">Projects (0)</h2>
+              <div className="p-12 rounded-xl bg-white/5 border border-white/10 text-center">
+                <div className="w-12 h-12 rounded-full bg-[rgba(255,107,53,0.1)] flex items-center justify-center mx-auto mb-3">
+                  <Rocket size={24} className="text-[#FF6B35]" />
                 </div>
-
-                {/* Progress Bar */}
-                <div className="mb-3">
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-gray-400">
-                      {project.completedMilestones}/{project.milestones} milestones
-                    </span>
-                    <span className="text-[#4A7BFF] font-semibold">{project.progress}%</span>
-                  </div>
-                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      whileInView={{ width: `${project.progress}%` }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 1, delay: 0.3 + index * 0.1 }}
-                      className="h-full bg-gradient-to-r from-[#4A7BFF] to-[#6B95FF] rounded-full"
-                    />
-                  </div>
-                </div>
-
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#4A7BFF]/10 border border-[#4A7BFF]/20 rounded-full">
-                  <TrendingUp className="w-3 h-3 text-[#4A7BFF]" />
-                  <span className="text-xs text-[#4A7BFF] font-medium">{project.status}</span>
-                </div>
-              </motion.div>
-            ))}
-            
-            {/* More Projects Indicator */}
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              className="p-4 bg-white/5 border border-white/10 rounded-2xl text-center cursor-pointer hover:bg-white/10 transition-colors"
-            >
-              <span className="text-sm text-gray-400">+1 more project</span>
-            </motion.div>
-          </div>
-
-          {/* Recent Activity */}
-          <div className="mb-8 pb-8 border-b border-white/10">
-            <h4 className="text-lg font-semibold text-white mb-4">Recent Activity</h4>
-            <div className="space-y-3">
-              {recentActivity.map((activity, index) => (
-                <motion.div
-                  key={activity.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  className="flex items-start gap-3 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
-                >
-                  <CheckCircle className="w-5 h-5 text-[#4A7BFF] mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-white text-sm mb-1">{activity.task}</p>
-                    <p className="text-xs text-gray-400">
-                      {activity.project} • {activity.timestamp}
-                    </p>
-                  </div>
-                </motion.div>
-              ))}
+                <h3 className="text-lg font-semibold mb-2">No Projects Started Yet</h3>
+                <p className="text-sm text-gray-400 max-w-md mx-auto mb-4">
+                  Your portfolio will showcase real projects you build. Start your first project to begin your journey.
+                </p>
+                <button className="px-6 py-2.5 rounded-lg bg-[#FF6B35] hover:bg-[#ff7d4d] text-white text-sm font-medium transition-colors">
+                  Choose a Project
+                </button>
+              </div>
             </div>
-          </div>
 
-          {/* Skills */}
-          <div>
-            <h4 className="text-lg font-semibold text-white mb-4">Skills Proven by Work</h4>
-            <div className="flex flex-wrap gap-3">
-              {skills.map((skill, index) => (
-                <motion.div
-                  key={skill.name}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.3, delay: index * 0.05 }}
-                  whileHover={{ scale: 1.05 }}
-                  className="px-4 py-2 bg-white/10 border border-white/20 rounded-full cursor-pointer hover:bg-white/20 transition-colors"
-                >
-                  <span className="text-sm text-white font-medium">{skill.name}</span>
-                  <span className="text-xs text-gray-400 ml-2">({skill.count})</span>
-                </motion.div>
-              ))}
+            {/* WORK DISCIPLINE SECTION */}
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight mb-4">Work Discipline</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-6 rounded-xl border border-white/10 bg-white/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Calendar size={16} className="text-[#FF6B35]" />
+                    <p className="text-xs text-gray-400">Active Days</p>
+                  </div>
+                  <p className="text-2xl font-semibold">0</p>
+                </div>
+
+                <div className="p-6 rounded-xl border border-white/10 bg-white/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Flame size={16} className="text-[#FF6B35]" />
+                    <p className="text-xs text-gray-400">Longest Streak</p>
+                  </div>
+                  <p className="text-2xl font-semibold">0</p>
+                </div>
+
+                <div className="p-6 rounded-xl border border-white/10 bg-white/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock size={16} className="text-[#FF6B35]" />
+                    <p className="text-xs text-gray-400">Avg Pace</p>
+                  </div>
+                  <p className="text-2xl font-semibold">-</p>
+                </div>
+
+                <div className="p-6 rounded-xl border border-white/10 bg-white/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock size={16} className="text-[#FF6B35]" />
+                    <p className="text-xs text-gray-400">Last Active</p>
+                  </div>
+                  <p className="text-sm font-medium">Never</p>
+                </div>
+              </div>
+            </div>
+
+            {/* FOOTER */}
+            <div className="pt-6 border-t border-white/10">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-400">
+                <div className="flex items-center gap-2">
+                  <Rocket size={16} className="text-[#FF6B35]" />
+                  <span>
+                    Built on <span className="text-white font-medium">MadeIt</span> · Portfolio auto-generated from verified work
+                  </span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Clock size={14} />
+                    <span>Last updated today</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>

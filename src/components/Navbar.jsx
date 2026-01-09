@@ -25,16 +25,16 @@ const Navbar = () => {
         <div className={`max-md:absolute max-md:top-0 max-md:left-0 max-md:font-medium max-md:text-lg z-50 flex flex-col md:flex-row items-center max-md:justify-center text-white gap-7 min-md:px-9 py-3 max-md:h-screen min-md:rounded-full backdrop-blur bg-black/70 md:bg-white/10 md:border border-white overflow-hidden transition-[width] duration-350  ${isOpen ? 'max-md:w-full' : 'max-md:w-0'}`} >
           <XIcon className='md:hidden absolute top-6 right-6  w-6 h-6 cursor-pointer' onClick={() => setIsOpen(!isOpen)} />
 
-          <Link to="/convert" className="hover:text-blue-600 transition">
+          <a href="#how" onClick={() => setIsOpen(false)} className="hover:text-[#FF6B35] transition cursor-pointer">
             How It Works
-          </Link>
-          <Link to="/pricing" className="hover:text-blue-600 transition">
+          </a>
+          <a href="#portfolio" onClick={() => setIsOpen(false)} className="hover:text-[#FF6B35] transition cursor-pointer">
             Portfolio
-          </Link>
-          <Link to="#why" className="hover:text-blue-600 transition">
+          </a>
+          <a href="#why" onClick={() => setIsOpen(false)} className="hover:text-[#FF6B35] transition cursor-pointer">
             Why MadeIt?
-          </Link>
-          <Link to="/contact-us" className="hover:text-blue-600 transition">Contact Us</Link>
+          </a>
+          <Link to="/contact-us" className="hover:text-[#FF6B35] transition">Contact Us</Link>
 
         </div>
 

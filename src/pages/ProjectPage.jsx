@@ -407,7 +407,7 @@ export default function ProjectPage() {
                         For each task, you'll submit <strong className="text-white">proof of work</strong> — evidence that you've completed the task. This could be:
                     </p>
                     <ul className="space-y-2 text-sm text-[#A0A0A0]">
-                        {project.proofOfWork.slice(0, 3).map((item, index) => (
+                        {(project.proofOfWork || []).slice(0, 3).map((item, index) => (
                             <li key={index} className="flex items-start gap-2">
                                 <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0 text-[#FF6B35]" />
                                 <span>{item}</span>

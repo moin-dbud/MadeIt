@@ -131,7 +131,7 @@ export const filterPublicUserData = (userData) => {
         // Remove in-progress data
         delete activeProject.completedTasks;
         delete activeProject.taskCompletionHistory;
-        delete activeProject.githubRepo; // Hide repo URL for privacy
+        // Keep githubRepo visible for recruiters to see project code
 
         publicData.activeProject = activeProject;
     }
