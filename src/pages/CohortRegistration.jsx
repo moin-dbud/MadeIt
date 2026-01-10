@@ -160,21 +160,24 @@ const CohortRegistration = () => {
             // Try to send emails via API (this may fail in local dev)
             try {
                 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-                const response = await fetch(`${API_BASE_URL}/api/cohort-application`, {
+                const response = await fetch(`${API_BASE_URL}/api/send-email`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        name: formData.name.trim(),
-                        email: formData.email.trim().toLowerCase(),
-                        phone: formData.phone.trim(),
-                        status: formData.status,
-                        techInterest: formData.techInterest.join(', '),
-                        githubUrl: formData.githubUrl.trim(),
-                        motivation: formData.motivation.trim(),
-                        commitment: formData.commitment,
-                        applicationId: docRef.id
+                        type: 'cohortApplicationUser',
+                        data: {
+                            name: formData.name.trim(),
+                            email: formData.email.trim().toLowerCase(),
+                            phone: formData.phone.trim(),
+                            status: formData.status,
+                            techInterest: formData.techInterest.join(', '),
+                            githubUrl: formData.githubUrl.trim(),
+                            motivation: formData.motivation.trim(),
+                            commitment: formData.commitment,
+                            applicationId: docRef.id
+                        }
                     }),
                 });
 
