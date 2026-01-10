@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import { ProtectedRoute, PublicRoute } from "./components/ProtectedRoute";
 import Home from "./pages/Home";
+import About from "./pages/About";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import ProfileSetup from "./pages/ProfileSetup";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
@@ -97,6 +99,28 @@ export default function App() {
               <>
                 <Navbar />
                 <ContactUs />
+              </>
+            }
+          />
+
+          {/* ABOUT - Accessible to anyone */}
+          <Route
+            path="/about"
+            element={
+              <>
+                <Navbar />
+                <About />
+              </>
+            }
+          />
+
+          {/* PRIVACY POLICY - Accessible to anyone */}
+          <Route
+            path="/privacy-policy"
+            element={
+              <>
+                <Navbar />
+                <PrivacyPolicy />
               </>
             }
           />

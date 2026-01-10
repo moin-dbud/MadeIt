@@ -34,7 +34,9 @@ const Navbar = () => {
           <a href="#why" onClick={() => setIsOpen(false)} className="hover:text-[#FF6B35] transition cursor-pointer">
             Why MadeIt?
           </a>
-          <Link to="/contact-us" className="hover:text-[#FF6B35] transition">Contact Us</Link>
+          <Link to="/about" onClick={() => setIsOpen(false)} className="hover:text-[#FF6B35] transition cursor-pointer">About</Link>
+          <Link to="/contact-us" onClick={() => setIsOpen(false)} className="hover:text-[#FF6B35] transition cursor-pointer">Contact Us</Link>
+
 
         </div>
 
