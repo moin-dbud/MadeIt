@@ -39,6 +39,43 @@ module.exports = async (req, res) => {
         // Email templates
         const getEmailContent = (emailType, emailData) => {
             switch (emailType) {
+                case 'welcome':
+                    return {
+                        to: emailData.email,
+                        subject: 'Welcome to MadeIt!',
+                        html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #4A7BFF;">Welcome to MadeIt, ${emailData.name}!</h2>
+                <p>We're excited to have you on board.</p>
+                <p>MadeIt helps you build real projects through structured milestones and turns your progress into a proof-of-work portfolio.</p>
+                <h3>Next Steps:</h3>
+                <ol style="line-height: 1.8;">
+                  <li>Browse available projects</li>
+                  <li>Select a project that interests you</li>
+                  <li>Start building and submitting proof</li>
+                </ol>
+                <p>If you have any questions, feel free to reach out!</p>
+                <p>Best regards,<br><strong>The MadeIt Team</strong></p>
+              </div>
+            `,
+                    };
+
+                case 'projectSelection':
+                    return {
+                        to: emailData.email,
+                        subject: `You've selected: ${emailData.projectName}`,
+                        html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #4A7BFF;">Project Selected!</h2>
+                <p>Hi ${emailData.name},</p>
+                <p>You've successfully selected <strong>${emailData.projectName}</strong>.</p>
+                <p>Start working through the milestones and submit proof as you complete each one.</p>
+                <p>Good luck building!</p>
+                <p>Best regards,<br><strong>The MadeIt Team</strong></p>
+              </div>
+            `,
+                    };
+
                 case 'cohortApplicationUser':
                     return {
                         to: emailData.email,

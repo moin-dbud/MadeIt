@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { auth } from "../firebase/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import { useNavigate } from "react-router-dom";
 import { GraduationCap, Award, Rocket, ArrowRight } from "lucide-react";
@@ -100,7 +100,7 @@ export default function ProfileSetup() {
     if (!user) return;
     try {
       const ref = doc(db, "users", user.uid);
-      await updateDoc(ref, payload);
+      await setDoc(ref, payload, { merge: true });
     } catch (error) {
       console.error("Error updating Firestore:", error);
       throw error;
@@ -196,12 +196,15 @@ export default function ProfileSetup() {
       setTimeout(async () => {
         // Send welcome email
         try {
-          await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-welcome-email`, {
+          await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-email`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              userName: formData.profile.fullName,
-              userEmail: user.email
+              type: 'welcome',
+              data: {
+                name: formData.profile.fullName,
+                email: user.email
+              }
             })
           });
         } catch (error) {

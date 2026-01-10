@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import { ProtectedRoute, PublicRoute } from "./components/ProtectedRoute";
 import Home from "./pages/Home";
+import Login from "./pages/Login";
 import About from "./pages/About";
 import Documentation from "./pages/Documentation";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -104,6 +105,12 @@ export default function App() {
                 <ContactUs />
               </>
             }
+          />
+
+          {/* LOGIN - Email/Password Authentication */}
+          <Route
+            path="/login"
+            element={<Login />}
           />
 
           {/* ABOUT - Accessible to anyone */}

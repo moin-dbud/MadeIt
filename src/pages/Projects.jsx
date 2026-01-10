@@ -82,14 +82,16 @@ export default function Projects() {
             });
 
             try {
-                await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-project-selection-email`, {
+                await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-email`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        userName: userData?.profile?.fullName || 'there',
-                        userEmail: user.email,
-                        projectName: selectedProject.name,
-                        projectDescription: selectedProject.shortDescription
+                        type: 'projectSelection',
+                        data: {
+                            name: userData?.profile?.fullName || 'there',
+                            email: user.email,
+                            projectName: selectedProject.name
+                        }
                     })
                 });
             } catch (error) {
