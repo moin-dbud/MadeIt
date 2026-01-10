@@ -6,6 +6,7 @@ import About from "./pages/About";
 import Documentation from "./pages/Documentation";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import CohortRegistration from "./pages/CohortRegistration";
 import ProfileSetup from "./pages/ProfileSetup";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
@@ -145,6 +146,17 @@ export default function App() {
               <>
                 <Navbar />
                 <Documentation />
+              </>
+            }
+          />
+
+          {/* COHORT REGISTRATION - Accessible to anyone */}
+          <Route
+            path="/cohort"
+            element={
+              <>
+                <Navbar />
+                <CohortRegistration />
               </>
             }
           />

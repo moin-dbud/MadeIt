@@ -83,6 +83,16 @@ service cloud.firestore {
       allow write: if isOwner(portfolioId) || isAdmin();
     }
     
+    // ==================== COHORT APPLICATIONS ====================
+    match /cohortApplications/{applicationId} {
+      // 🌐 PUBLIC CREATE: Allow anyone to submit a cohort application
+      // This is intentionally open since it's for unauthenticated registration
+      allow create: if true;
+      
+      // Only admins can read, update, or delete applications
+      allow read, update, delete: if isAdmin();
+    }
+    
     // ==================== DEFAULT DENY ====================
     match /{document=**} {
       allow read, write: if false;
