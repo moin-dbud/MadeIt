@@ -56,13 +56,13 @@ export default function Footer() {
                     <h4 className="font-heading text-lg font-semibold mb-3">Resources</h4>
                     <ul className="flex flex-col gap-2">
                       <li>
-                        <a href="#" className="inline-flex cursor-pointer gap-2 whitespace-nowrap rounded-md text-md font-medium duration-200 disabled:pointer-events-none disabled:opacity-50 text-gray-400 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive text-muted-foreground transition-all hover:underline underline-offset-4 decoration-primary">Documentation</a>
+                        <a href="/documentation" className="inline-flex cursor-pointer gap-2 whitespace-nowrap rounded-md text-md font-medium duration-200 disabled:pointer-events-none disabled:opacity-50 text-gray-400 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive text-muted-foreground transition-all hover:underline underline-offset-4 decoration-primary">Documentation</a>
                       </li>
                       <li>
                         <a href="/privacy-policy" className="inline-flex cursor-pointer gap-2 whitespace-nowrap rounded-md text-md font-medium duration-200 disabled:pointer-events-none disabled:opacity-50 text-gray-400 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive text-muted-foreground transition-all hover:underline underline-offset-4 decoration-primary">Privacy Policy</a>
                       </li>
                       <li>
-                        <a href="#" className="inline-flex cursor-pointer gap-2 whitespace-nowrap rounded-md text-md font-medium duration-200 disabled:pointer-events-none disabled:opacity-50 text-gray-400 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive text-muted-foreground transition-all hover:underline underline-offset-4 decoration-primary">Terms of Service</a>
+                        <a href="/terms-of-service" className="inline-flex cursor-pointer gap-2 whitespace-nowrap rounded-md text-md font-medium duration-200 disabled:pointer-events-none disabled:opacity-50 text-gray-400 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive text-muted-foreground transition-all hover:underline underline-offset-4 decoration-primary">Terms of Service</a>
                       </li>
                     </ul>
                   </div>

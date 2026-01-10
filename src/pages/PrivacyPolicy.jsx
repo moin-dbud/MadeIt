@@ -440,10 +440,10 @@ const PrivacyPolicy = () => {
                             </p>
                             <div className="p-6 bg-white/[0.03] border border-white/10 rounded-xl">
                                 <p className="text-white mb-3">
-                                    <strong>Email:</strong> <a href="mailto:privacy@madeit.com" className="text-[#4A7BFF] hover:underline">privacy@madeit.com</a>
+                                    <strong>Email:</strong> <a href="mailto:moinsheikh1303@gmail.com" className="text-[#4A7BFF] hover:underline">moinsheikh1303@gmail.com</a>
                                 </p>
                                 <p className="text-white">
-                                    <strong>Support Page:</strong> <a href="/support" className="text-[#4A7BFF] hover:underline">Visit Support</a>
+                                    <strong>Support Page:</strong> <a href="/contact-us" className="text-[#4A7BFF] hover:underline">Contact Us</a>
                                 </p>
                             </div>
                             <p className="text-sm text-gray-500 mt-6">

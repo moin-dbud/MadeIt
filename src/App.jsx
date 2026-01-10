@@ -3,7 +3,9 @@ import Navbar from "./components/Navbar";
 import { ProtectedRoute, PublicRoute } from "./components/ProtectedRoute";
 import Home from "./pages/Home";
 import About from "./pages/About";
+import Documentation from "./pages/Documentation";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
 import ProfileSetup from "./pages/ProfileSetup";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
@@ -121,6 +123,28 @@ export default function App() {
               <>
                 <Navbar />
                 <PrivacyPolicy />
+              </>
+            }
+          />
+
+          {/* TERMS OF SERVICE - Accessible to anyone */}
+          <Route
+            path="/terms-of-service"
+            element={
+              <>
+                <Navbar />
+                <TermsOfService />
+              </>
+            }
+          />
+
+          {/* DOCUMENTATION - Accessible to anyone */}
+          <Route
+            path="/documentation"
+            element={
+              <>
+                <Navbar />
+                <Documentation />
               </>
             }
           />
