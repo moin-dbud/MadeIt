@@ -9,6 +9,7 @@ import MilestoneCard from "../components/MilestoneCard";
 import SubmissionModal from "../components/SubmissionModal";
 import LoadingButton from "../components/LoadingButton";
 import { PageLoader, MilestoneCardSkeleton } from "../components/SkeletonLoaders";
+import { EMAIL_CONFIG } from '../config/email';
 
 export default function ProjectPage() {
     const { projectId } = useParams();
@@ -163,6 +164,24 @@ export default function ProjectPage() {
                 "activeProject.completedTasks": [],
             });
 
+            const project = getProjectById(projectId);
+            const milestones = getMilestones(projectId);
+            try {
+                await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-project-confirmation-email`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userName: userData?.profile?.fullName || 'there',
+                        userEmail: user.email,
+                        projectName: project?.name || 'Your Project',
+                        milestoneCount: milestones?.length || 0,
+                        githubRepo: githubRepo.trim()
+                    })
+                });
+            } catch (error) {
+                console.error('Confirmation email failed:', error);
+            }
+
             setShowInstructions(false);
 
             setUserData((prev) => ({
@@ -225,19 +244,18 @@ export default function ProjectPage() {
             const userRef = doc(db, "users", user.uid);
             console.log("User Ref Path:", userRef.path);
 
-            // Calculate new progress
-            const newCompletedMilestones = [...completedMilestones, milestoneId];
-            const progress = calculateProgress(projectId, newCompletedMilestones);
-            console.log("New Progress:", progress);
-            console.log("Completed Milestones:", newCompletedMilestones);
+            // DO NOT auto-complete milestone - it needs admin verification
+            // const newCompletedMilestones = [...completedMilestones, milestoneId];
+            // const progress = calculateProgress(projectId, newCompletedMilestones);
 
             const updateData = {
-                'activeProject.completedMilestones': arrayUnion(milestoneId),
+                // DO NOT add to completedMilestones yet - admin must verify first
                 [`activeProject.submissions.${milestoneId}`]: {
                     submittedAt: new Date().toISOString(),
-                    proofs: proofData
-                },
-                'activeProject.progress': progress
+                    proofs: proofData,
+                    verificationStatus: "under_review" // Admin must verify before milestone is complete
+                }
+                // DO NOT update progress yet - wait for admin verification
             };
 
             console.log("Update Data:", updateData);
@@ -245,11 +263,50 @@ export default function ProjectPage() {
             await updateDoc(userRef, updateData);
             console.log("✅ Firestore update successful!");
 
-            setCompletedMilestones(newCompletedMilestones);
+            // Refresh userData to show verification badge immediately
+            const updatedUserSnap = await getDoc(userRef);
+            if (updatedUserSnap.exists()) {
+                setUserData(updatedUserSnap.data());
+            }
+
+            // Send email notification to admin
+            try {
+                const milestoneConfig = getMilestones(userData.activeProject.id).find(m => m.milestoneId === selectedMilestone.milestoneId);
+                const emailData = {
+                    userName: userData.profile?.fullName || userData.name || 'User',
+                    userEmail: userData.email || user.email,
+                    projectName: userData.activeProject.name,
+                    milestoneName: milestoneConfig?.title || selectedMilestone.title,
+                    milestoneId: selectedMilestone.milestoneId,
+                    adminEmail: 'moinsheikh1303@gmail.com' // Correct admin email
+                };
+
+                console.log('📧 Sending admin notification email...', emailData);
+
+                const response = await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-milestone-submitted-email`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(emailData)
+                });
+
+                const result = await response.json();
+                console.log('📧 Email API response:', result);
+
+                if (result.success) {
+                    console.log('✅ Admin notification email sent successfully');
+                } else {
+                    console.error('❌ Email failed:', result.error);
+                }
+            } catch (emailError) {
+                console.error('❌ Email notification failed:', emailError);
+                console.error('Error details:', emailError.message);
+            }
+
+            // DO NOT update completedMilestones state - milestone is only submitted, not completed
             setShowMilestoneSubmission(false);
             setSelectedMilestone(null);
 
-            alert("Milestone submitted successfully! 🎉");
+            alert("Milestone submitted! ✅\nYour submission is now under review by an admin.");
         } catch (error) {
             console.error("❌ ERROR submitting milestone:");
             console.error("Error name:", error.name);
@@ -259,6 +316,7 @@ export default function ProjectPage() {
             throw new Error(`Failed to submit milestone. ${error.message}`);
         }
     };
+
 
     // ---- VALIDATE COMMIT URL ----
     const validateCommitUrl = (url) => {
@@ -899,6 +957,7 @@ export default function ProjectPage() {
                                                     setShowMilestoneSubmission(true);
                                                 }}
                                                 canSubmit={canSubmit && status === 'unlocked'}
+                                                submission={userData?.activeProject?.submissions?.[milestone.milestoneId]}
                                             />
                                         </motion.div>
                                     );

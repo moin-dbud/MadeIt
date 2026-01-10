@@ -1,0 +1,91 @@
+// FIRESTORE SECURITY RULES FOR MADEIT (WITH PUBLIC PORTFOLIO FIX)
+// Replace your current rules with these
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ==================== HELPER FUNCTIONS ====================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // ==================== USERS COLLECTION ====================
+    match /users/{userId} {
+      // 🌐 PUBLIC READ: Allow anyone to read user profiles (needed for public portfolios)
+      // This enables /portfolio/{username} to work without authentication
+      allow get: if true;
+      
+      // 🌐 PUBLIC LIST: Allow querying by username (needed for getUserByUsername)
+      allow list: if true;
+      
+      // ✍️ CREATE: Only during signup
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      
+      // ✍️ UPDATE: Own profile OR admin
+      allow update: if isOwner(userId) || isAdmin();
+      
+      // 🗑️ DELETE: ONLY ADMIN
+      allow delete: if isAdmin();
+    }
+    
+    // ==================== PROJECTS COLLECTION ====================
+    match /projects/{projectId} {
+      // Read: Anyone authenticated
+      allow read: if isAuthenticated();
+      
+      // Create/Update/Delete: ONLY ADMIN
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // ==================== SYSTEM SETTINGS ====================
+    match /system/settings {
+      // Read: Anyone authenticated
+      allow read: if isAuthenticated();
+      
+      // Write: ONLY ADMIN
+      allow write: if isAdmin();
+    }
+    
+    // ==================== SUPPORT TICKETS ====================
+    match /supportTickets/{ticketId} {
+      // Users can read only their own tickets
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Admins can read all tickets
+      allow read: if isAdmin();
+      
+      // Users can create tickets (must set userId to their own uid)
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      
+      // Admins can update tickets (e.g., change status)
+      allow update: if isAdmin();
+      
+      // Nobody can delete tickets
+      allow delete: if false;
+    }
+    
+    // ==================== PORTFOLIOS ====================
+    match /portfolios/{portfolioId} {
+      // Public read access for portfolios
+      allow read: if true;
+      
+      // Only owner or admin can write
+      allow write: if isOwner(portfolioId) || isAdmin();
+    }
+    
+    // ==================== DEFAULT DENY ====================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getAllProjects } from "../config/projects.config";
 import LoadingButton from "../components/LoadingButton";
 import { PageLoader, ProjectCardSkeleton } from "../components/SkeletonLoaders";
+import { EMAIL_CONFIG } from '../config/email';
 
 export default function Projects() {
     const user = auth.currentUser;
@@ -79,6 +80,21 @@ export default function Projects() {
                     instructionsAccepted: false,
                 },
             });
+
+            try {
+                await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-project-selection-email`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userName: userData?.profile?.fullName || 'there',
+                        userEmail: user.email,
+                        projectName: selectedProject.name,
+                        projectDescription: selectedProject.shortDescription
+                    })
+                });
+            } catch (error) {
+                console.error('Selection email failed:', error);
+            }
 
             // Navigate to project page
             navigate(`/projects/${selectedProject.projectId}`);

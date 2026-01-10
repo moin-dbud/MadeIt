@@ -1,18 +1,19 @@
 import { useEffect, useState, useRef } from "react";
 import { auth, db } from "../firebase/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Rocket, CheckCircle2, Calendar, ExternalLink, User, LogOut, X } from "lucide-react";
+import { ArrowRight, Rocket, CheckCircle2, Calendar, ExternalLink, User, LogOut, X, HelpCircle, Shield, Clock, Eye, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getMilestones } from "../config/projects.config";
 import LoadingButton from "../components/LoadingButton";
 import { PageLoader } from "../components/SkeletonLoaders";
 import RecruiterMessages from "../components/RecruiterMessages";
 import { useAuth } from "../context/AuthContext";
+import { EMAIL_CONFIG } from '../config/email';
 
 export default function Dashboard() {
-    const { user, loading: authLoading } = useAuth();
+    const { user, isAdmin, loading: authLoading } = useAuth();
     const navigate = useNavigate();
 
     const [userData, setUserData] = useState(null);
@@ -21,6 +22,15 @@ export default function Dashboard() {
     const [showModal, setShowModal] = useState(false);
     const [modalData, setModalData] = useState(null);
     const [saving, setSaving] = useState(false);
+
+    // Admin review state
+    const [pendingSubmissions, setPendingSubmissions] = useState([]);
+    const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+    const [showAdminReviewModal, setShowAdminReviewModal] = useState(false);
+    const [selectedSubmission, setSelectedSubmission] = useState(null);
+    const [reviewAction, setReviewAction] = useState(null);
+    const [adminNote, setAdminNote] = useState("");
+    const [processing, setProcessing] = useState(false);
 
     const dropdownRef = useRef(null);
     const avatarRef = useRef(null);
@@ -182,6 +192,166 @@ export default function Dashboard() {
             .slice(0, 2);
     };
 
+    // ---- ADMIN: FETCH PENDING SUBMISSIONS ----
+    const fetchPendingSubmissions = async () => {
+        if (!isAdmin) return;
+
+        setLoadingSubmissions(true);
+        try {
+            const usersRef = collection(db, "users");
+            const usersSnap = await getDocs(usersRef);
+
+            const pending = [];
+
+            usersSnap.forEach((userDoc) => {
+                const userData = userDoc.data();
+                const submissions = userData.activeProject?.submissions || {};
+
+                Object.entries(submissions).forEach(([milestoneId, submission]) => {
+                    if (submission.verificationStatus === "under_review") {
+                        pending.push({
+                            userId: userDoc.id,
+                            userName: userData.profile?.fullName || userData.email || "Unknown User",
+                            userEmail: userData.email,
+                            projectId: userData.activeProject?.id,
+                            projectName: userData.activeProject?.name,
+                            milestoneId,
+                            submission,
+                            submittedAt: submission.submittedAt
+                        });
+                    }
+                });
+            });
+
+            // Sort by submission date (newest first)
+            pending.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+
+            setPendingSubmissions(pending);
+        } catch (error) {
+            console.error("Error fetching pending submissions:", error);
+        } finally {
+            setLoadingSubmissions(false);
+        }
+    };
+
+    // ---- ADMIN: FETCH PENDING SUBMISSIONS ON LOAD ----
+    useEffect(() => {
+        if (isAdmin && !loading) {
+            fetchPendingSubmissions();
+        }
+    }, [isAdmin, loading]);
+
+    // ---- ADMIN: HANDLE REVIEW DECISION ----
+    const handleReviewDecision = async () => {
+        if (!selectedSubmission || !reviewAction) return;
+
+        setProcessing(true);
+        try {
+            const { verifyMilestone, flagMilestone, rejectMilestone } = await import("../firebase/firestore");
+
+            if (reviewAction === "verify") {
+                await verifyMilestone(selectedSubmission.userId, selectedSubmission.milestoneId, user.uid);
+
+                // Send verification email to user
+                try {
+                    console.log('📧 Sending verification email to:', selectedSubmission.userEmail);
+                    const response = await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-milestone-verified-email`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userName: selectedSubmission.userName,
+                            userEmail: selectedSubmission.userEmail,
+                            projectName: selectedSubmission.projectName,
+                            milestoneName: selectedSubmission.milestoneName || `Milestone ${selectedSubmission.milestoneId}`,
+                            milestoneId: selectedSubmission.milestoneId
+                        })
+                    });
+                    const result = await response.json();
+                    console.log('📧 Verification email result:', result);
+                } catch (emailError) {
+                    console.error('❌ Verification email failed:', emailError);
+                }
+
+                alert("✅ Milestone verified successfully!");
+            } else if (reviewAction === "flag") {
+                if (!adminNote.trim()) {
+                    alert("Please provide a note before flagging.");
+                    setProcessing(false);
+                    return;
+                }
+                await flagMilestone(selectedSubmission.userId, selectedSubmission.milestoneId, user.uid, adminNote);
+
+                // Send flag email to user
+                try {
+                    console.log('📧 Sending flag email to:', selectedSubmission.userEmail);
+                    const response = await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-milestone-flagged-email`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userName: selectedSubmission.userName,
+                            userEmail: selectedSubmission.userEmail,
+                            projectName: selectedSubmission.projectName,
+                            milestoneName: selectedSubmission.milestoneName || `Milestone ${selectedSubmission.milestoneId}`,
+                            milestoneId: selectedSubmission.milestoneId,
+                            adminNote: adminNote
+                        })
+                    });
+                    const result = await response.json();
+                    console.log('📧 Flag email result:', result);
+                } catch (emailError) {
+                    console.error('❌ Flag email failed:', emailError);
+                }
+
+                alert("⚠️ Milestone flagged. User will be notified.");
+            } else if (reviewAction === "reject") {
+                if (!adminNote.trim()) {
+                    alert("Please provide a reason before rejecting.");
+                    setProcessing(false);
+                    return;
+                }
+                await rejectMilestone(selectedSubmission.userId, selectedSubmission.milestoneId, user.uid, adminNote);
+
+                // Send rejection email to user
+                try {
+                    console.log('📧 Sending rejection email to:', selectedSubmission.userEmail);
+                    const response = await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-milestone-rejected-email`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userName: selectedSubmission.userName,
+                            userEmail: selectedSubmission.userEmail,
+                            projectName: selectedSubmission.projectName,
+                            milestoneName: selectedSubmission.milestoneName || `Milestone ${selectedSubmission.milestoneId}`,
+                            milestoneId: selectedSubmission.milestoneId,
+                            adminNote: adminNote
+                        })
+                    });
+                    const result = await response.json();
+                    console.log('📧 Rejection email result:', result);
+                } catch (emailError) {
+                    console.error('❌ Rejection email failed:', emailError);
+                }
+
+                alert("❌ Milestone rejected. User will be notified.");
+            }
+
+            // Close modal and refresh
+            setShowAdminReviewModal(false);
+            setSelectedSubmission(null);
+            setReviewAction(null);
+            setAdminNote("");
+
+            // Refresh pending submissions
+            await fetchPendingSubmissions();
+
+        } catch (error) {
+            console.error("Error processing review:", error);
+            alert("Failed to process review. Please try again.");
+        } finally {
+            setProcessing(false);
+        }
+    };
+
     // ---- LOADING STATE ----
     if (loading) {
         return <PageLoader message="Loading your dashboard..." />;
@@ -199,16 +369,25 @@ export default function Dashboard() {
         ? Math.floor((new Date() - new Date(activeProject.startedAt)) / (1000 * 60 * 60 * 24)) + 1
         : 0;
 
-    // Calculate progress percentage
+    // Calculate progress percentage and check if project is completed
     let progressPercentage = 0;
+    let isProjectCompleted = false;
     if (activeProject?.id) {
         const milestones = getMilestones(activeProject.id);
         const totalTasks = milestones.reduce((sum, m) => sum + m.tasks.length, 0);
         progressPercentage = totalTasks > 0 ? Math.round((completedTasksCount / totalTasks) * 100) : 0;
+
+        // Check if ALL milestones are verified (project is completed)
+        const totalMilestones = milestones.length;
+        const verifiedMilestones = milestones.filter(m => {
+            const submission = activeProject.submissions?.[m.milestoneId];
+            return submission?.verificationStatus === 'verified';
+        }).length;
+        isProjectCompleted = totalMilestones > 0 && verifiedMilestones === totalMilestones;
     }
 
     const stats = {
-        projectsCompleted: userData.stats?.projectsCompleted || 0,
+        projectsCompleted: isProjectCompleted ? 1 : 0,
         tasksCompleted: completedTasksCount,
         activeDays: activeDays,
     };
@@ -283,6 +462,17 @@ export default function Dashboard() {
                                     >
                                         <User size={16} strokeWidth={1.5} />
                                         Manage account
+                                    </button>
+                                    <div className="h-px bg-[rgba(255,255,255,0.08)]"></div>
+                                    <button
+                                        onClick={() => {
+                                            setShowDropdown(false);
+                                            navigate("/support");
+                                        }}
+                                        className="w-full px-4 py-3 text-left text-sm flex items-center gap-3 hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+                                    >
+                                        <HelpCircle size={16} strokeWidth={1.5} />
+                                        Support / Raise Ticket
                                     </button>
                                     <div className="h-px bg-[rgba(255,255,255,0.08)]"></div>
                                     <button
@@ -435,6 +625,75 @@ export default function Dashboard() {
                 >
                     <RecruiterMessages />
                 </motion.div>
+
+                {/* ADMIN MILESTONE REVIEW SECTION */}
+                {isAdmin && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.4, delay: 0.4 }}
+                        className="mb-8"
+                    >
+                        <div className="rounded-2xl p-6 border border-[rgba(255,107,53,0.3)] bg-[rgba(255,107,53,0.05)]">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-10 h-10 rounded-lg bg-[rgba(255,107,53,0.2)] flex items-center justify-center">
+                                    <Shield size={20} className="text-[#FF6B35]" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-semibold">🛡️ Admin · Milestone Review</h3>
+                                    <p className="text-xs text-[#A0A0A0]">Pending milestone submissions</p>
+                                </div>
+                            </div>
+
+                            {loadingSubmissions ? (
+                                <div className="text-center py-8">
+                                    <div className="w-8 h-8 border-2 border-[#FF6B35] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                                    <p className="text-sm text-[#A0A0A0]">Loading submissions...</p>
+                                </div>
+                            ) : pendingSubmissions.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <CheckCircle size={32} className="text-green-400 mx-auto mb-3" />
+                                    <p className="text-sm text-[#A0A0A0]">No pending submissions</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {pendingSubmissions.map((item, index) => (
+                                        <div
+                                            key={`${item.userId}-${item.milestoneId}`}
+                                            className="p-4 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+                                        >
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <p className="font-medium text-sm">{item.userName}</p>
+                                                        <span className="px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-400">Pending</span>
+                                                    </div>
+                                                    <p className="text-xs text-[#A0A0A0] mb-1">
+                                                        {item.projectName} · Milestone ID: {item.milestoneId}
+                                                    </p>
+                                                    <div className="flex items-center gap-2 text-xs text-[#606060]">
+                                                        <Clock size={12} />
+                                                        <span>Submitted {new Date(item.submittedAt).toLocaleDateString()}</span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedSubmission(item);
+                                                        setShowAdminReviewModal(true);
+                                                    }}
+                                                    className="px-4 py-2 rounded-lg bg-[#FF6B35] text-white text-sm font-medium hover:bg-[#FF8555] transition-colors flex items-center gap-2"
+                                                >
+                                                    <Eye size={14} />
+                                                    Review
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
 
             </div>
 
@@ -608,6 +867,152 @@ export default function Dashboard() {
                                 >
                                     Save Changes
                                 </LoadingButton>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ADMIN REVIEW MODAL */}
+            <AnimatePresence>
+                {showAdminReviewModal && selectedSubmission && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                        onClick={() => {
+                            setShowAdminReviewModal(false);
+                            setReviewAction(null);
+                            setAdminNote("");
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-[#0A0A0A] border border-[rgba(255,255,255,0.1)] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+                        >
+                            {/* Header */}
+                            <div className="p-6 border-b border-[rgba(255,255,255,0.1)]">
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <h2 className="text-xl font-semibold mb-1">Review Submission</h2>
+                                        <p className="text-sm text-[#A0A0A0]">
+                                            {selectedSubmission.userName} · {selectedSubmission.projectName}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setShowAdminReviewModal(false);
+                                            setReviewAction(null);
+                                            setAdminNote("");
+                                        }}
+                                        className="w-8 h-8 rounded-lg hover:bg-[rgba(255,255,255,0.05)] flex items-center justify-center"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Content */}
+                            <div className="p-6 max-h-[60vh] overflow-y-auto">
+                                <div className="mb-6">
+                                    <h3 className="text-sm font-medium mb-3">Submission Details</h3>
+                                    <div className="space-y-2 text-sm">
+                                        <p><span className="text-[#A0A0A0]">User:</span> {selectedSubmission.userName}</p>
+                                        <p><span className="text-[#A0A0A0]">Email:</span> {selectedSubmission.userEmail}</p>
+                                        <p><span className="text-[#A0A0A0]">Project:</span> {selectedSubmission.projectName}</p>
+                                        <p><span className="text-[#A0A0A0]">Milestone:</span> {selectedSubmission.milestoneId}</p>
+                                        <p><span className="text-[#A0A0A0]">Submitted:</span> {new Date(selectedSubmission.submittedAt).toLocaleString()}</p>
+                                    </div>
+                                </div>
+
+                                {/* Proofs */}
+                                <div className="mb-6">
+                                    <h3 className="text-sm font-medium mb-3">Proofs Submitted</h3>
+                                    <div className="p-4 rounded-xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)]">
+                                        <pre className="text-xs text-[#A0A0A0] overflow-x-auto whitespace-pre-wrap">
+                                            {JSON.stringify(selectedSubmission.submission.proofs, null, 2)}
+                                        </pre>
+                                    </div>
+                                </div>
+
+                                {/* Action Selection */}
+                                <div className="mb-6">
+                                    <h3 className="text-sm font-medium mb-3">Review Action</h3>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <button
+                                            onClick={() => setReviewAction("verify")}
+                                            className={`p-3 rounded-lg border transition-all ${reviewAction === "verify"
+                                                ? "border-green-500 bg-green-500/10"
+                                                : "border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.05)]"
+                                                }`}
+                                        >
+                                            <CheckCircle size={20} className="text-green-400 mx-auto mb-1" />
+                                            <p className="text-xs font-medium">Verify</p>
+                                        </button>
+                                        <button
+                                            onClick={() => setReviewAction("flag")}
+                                            className={`p-3 rounded-lg border transition-all ${reviewAction === "flag"
+                                                ? "border-yellow-500 bg-yellow-500/10"
+                                                : "border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.05)]"
+                                                }`}
+                                        >
+                                            <AlertTriangle size={20} className="text-yellow-400 mx-auto mb-1" />
+                                            <p className="text-xs font-medium">Flag</p>
+                                        </button>
+                                        <button
+                                            onClick={() => setReviewAction("reject")}
+                                            className={`p-3 rounded-lg border transition-all ${reviewAction === "reject"
+                                                ? "border-red-500 bg-red-500/10"
+                                                : "border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.05)]"
+                                                }`}
+                                        >
+                                            <XCircle size={20} className="text-red-400 mx-auto mb-1" />
+                                            <p className="text-xs font-medium">Reject</p>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Admin Note (for flag/reject) */}
+                                {(reviewAction === "flag" || reviewAction === "reject") && (
+                                    <div className="mb-6">
+                                        <label className="block text-sm font-medium mb-2">
+                                            {reviewAction === "flag" ? "Flag Note" : "Rejection Reason"} *
+                                        </label>
+                                        <textarea
+                                            value={adminNote}
+                                            onChange={(e) => setAdminNote(e.target.value)}
+                                            placeholder={`Provide ${reviewAction === "flag" ? "clarification needed" : "reason for rejection"}...`}
+                                            rows={4}
+                                            className="w-full px-4 py-3 rounded-xl bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-white outline-none focus:border-[#FF6B35] transition-colors resize-none"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer */}
+                            <div className="p-6 border-t border-[rgba(255,255,255,0.1)]  flex items-center justify-end gap-3">
+                                <button
+                                    onClick={() => {
+                                        setShowAdminReviewModal(false);
+                                        setReviewAction(null);
+                                        setAdminNote("");
+                                    }}
+                                    className="px-6 py-2.5 rounded-xl text-sm font-medium border border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.05)]"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleReviewDecision}
+                                    disabled={!reviewAction || processing}
+                                    className="px-6 py-2.5 rounded-xl bg-[#FF6B35] text-white text-sm font-medium hover:bg-[#FF8555] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                >
+                                    {processing && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                                    {processing ? "Processing..." : "Submit Review"}
+                                </button>
                             </div>
                         </motion.div>
                     </motion.div>

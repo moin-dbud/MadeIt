@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lock, CheckCircle2, Circle, ChevronDown, ChevronUp, Target, Calendar, AlertCircle } from "lucide-react";
+import { Lock, CheckCircle2, Circle, ChevronDown, ChevronUp, Target, Calendar, AlertCircle, Clock, XCircle, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import TaskItem from "./TaskItem";
 
@@ -10,7 +10,8 @@ export default function MilestoneCard({
     completedTasks = [],
     onTaskComplete,
     onSubmit,
-    canSubmit
+    canSubmit,
+    submission // New prop: contains { submittedAt, proofs, verificationStatus, adminNote, etc }
 }) {
     const [isExpanded, setIsExpanded] = useState(status === 'unlocked');
 
@@ -174,11 +175,50 @@ export default function MilestoneCard({
                                     )}
                                     <button
                                         onClick={onSubmit}
-                                        disabled={!canSubmit}
+                                        disabled={!canSubmit || submission}
                                         className="w-full px-6 py-3 rounded-lg bg-[#FF6B35] text-white font-medium hover:bg-[#FF8555] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#FF6B35]"
                                     >
-                                        {canSubmit ? 'Submit Milestone' : 'Complete all tasks first'}
+                                        {submission ? 'Already Submitted' : canSubmit ? 'Submit Milestone' : 'Complete all tasks first'}
                                     </button>
+                                </div>
+                            )}
+
+                            {/* Verification Status Badges */}
+                            {submission && (
+                                <div className="pt-4 border-t border-[rgba(255,255,255,0.1)]">
+                                    {submission.verificationStatus === 'under_review' && (
+                                        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Clock size={16} className="text-blue-400" />
+                                                <p className="text-sm text-blue-400 font-medium">Milestone submitted · Verification under review</p>
+                                            </div>
+                                            <p className="text-xs text-blue-400/70 ml-6">Your submission is being reviewed by an admin</p>
+                                        </div>
+                                    )}
+                                    {submission.verificationStatus === 'verified' && (
+                                        <div className="p-3 bg-green-400/10 border border-green-400/20 rounded-lg flex items-center gap-2">
+                                            <ShieldCheck size={16} className="text-green-400" />
+                                            <p className="text-sm text-green-400 font-medium">MadeIt Verified ✓</p>
+                                        </div>
+                                    )}
+                                    {submission.verificationStatus === 'flagged' && (
+                                        <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <AlertCircle size={16} className="text-yellow-400" />
+                                                <p className="text-sm text-yellow-400 font-medium">Under review · Flagged for clarification</p>
+                                            </div>
+                                            {submission.adminNote && <p className="text-xs text-yellow-400/80 ml-6 mt-1">Admin note: {submission.adminNote}</p>}
+                                        </div>
+                                    )}
+                                    {submission.verificationStatus === 'rejected' && (
+                                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <XCircle size={16} className="text-red-400" />
+                                                <p className="text-sm text-red-400 font-medium">Submission rejected</p>
+                                            </div>
+                                            {submission.adminNote && <p className="text-xs text-red-400/80 ml-6 mt-1">Reason: {submission.adminNote}</p>}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

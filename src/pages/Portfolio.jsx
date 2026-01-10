@@ -8,7 +8,7 @@ import {
     Settings, Eye, EyeOff, Code, Award, CheckCircle2, Rocket, GitCommit, Share2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getProjectById, getMilestones, getAllProjects } from "../config/projects.config";
+import PROJECTS, { getProjectById, getMilestones, getAllProjects } from "../config/projects.config";
 import { fetchGitHubActivity, formatDuration, formatDate, getTimeSinceSync } from "../services/github.service";
 import EmptyState from "../components/EmptyState";
 import LoadingButton from "../components/LoadingButton";
@@ -486,7 +486,20 @@ export default function Portfolio() {
 
     // ---- CALCULATE STATS ----
     const calculateStats = () => {
-        const completedProjects = userData?.completedProjects?.length || 0;
+        // Calculate if active project is completed (all milestones verified)
+        let completedProjects = 0;
+        if (userData?.activeProject?.id) {
+            const projectConfig = PROJECTS.find(p => p.projectId === userData.activeProject.id);
+            if (projectConfig) {
+                const totalMilestones = projectConfig.milestones.length;
+                const verifiedMilestones = projectConfig.milestones.filter(m => {
+                    const submission = userData.activeProject.submissions?.[m.milestoneId];
+                    return submission?.verificationStatus === 'verified';
+                }).length;
+                completedProjects = (totalMilestones > 0 && verifiedMilestones === totalMilestones) ? 1 : 0;
+            }
+        }
+
         const activeDays = userData?.activeProject?.startedAt
             ? Math.floor((new Date() - new Date(userData.activeProject.startedAt)) / (1000 * 60 * 60 * 24)) + 1
             : 0;
@@ -529,6 +542,7 @@ export default function Portfolio() {
         const milestones = getMilestones(userData.activeProject.id);
         const completedTasks = userData.activeProject.completedTasks || [];
         const completedMilestones = userData.activeProject.completedMilestones || [];
+        const submissions = userData.activeProject.submissions || {};
 
         // Check each milestone for completion
         milestones.forEach(milestone => {
@@ -547,7 +561,15 @@ export default function Portfolio() {
                 isMilestoneCompleted = completedMilestones.includes(milestone.milestoneId);
             }
 
-            // Only add skills if milestone is completed
+            // PHASE 4: For public portfolios, only show verified milestones
+            if (!isOwner) {
+                const submission = submissions[milestone.milestoneId];
+                if (!submission || submission.verificationStatus !== 'verified') {
+                    isMilestoneCompleted = false; // Hide non-verified milestones from public view
+                }
+            }
+
+            // Only add skills if milestone is completed (and verified for public view)
             if (isMilestoneCompleted) {
                 // Get skills from this completed milestone
                 const milestoneSkills = milestone.skills || project.skills || [];
@@ -605,7 +627,16 @@ export default function Portfolio() {
             const projectConfig = getProjectById(userData.activeProject.id);
             if (projectConfig) {
                 const milestones = getMilestones(userData.activeProject.id);
-                const completedMilestones = userData.activeProject.completedMilestones || [];
+                let completedMilestones = userData.activeProject.completedMilestones || [];
+                const submissions = userData.activeProject.submissions || {};
+
+                // PHASE 4: For public portfolios, filter to only verified milestones
+                if (!isOwner) {
+                    completedMilestones = completedMilestones.filter(milestoneId => {
+                        const submission = submissions[milestoneId];
+                        return submission && submission.verificationStatus === 'verified';
+                    });
+                }
 
                 // Calculate progress
                 const totalMilestones = milestones.length;

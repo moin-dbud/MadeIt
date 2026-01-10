@@ -8,6 +8,7 @@ import { GraduationCap, Award, Rocket, ArrowRight } from "lucide-react";
 import { Github, Linkedin, Twitter, Check, PartyPopper, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { isUsernameAvailable } from "../utils/publicPortfolio";
+import { EMAIL_CONFIG } from '../config/email';
 
 export default function ProfileSetup() {
   const user = auth.currentUser;
@@ -192,7 +193,22 @@ export default function ProfileSetup() {
       });
 
       setCurrentStep(4);
-      setTimeout(() => navigate("/dashboard"), 1500);
+      setTimeout(async () => {
+        // Send welcome email
+        try {
+          await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-welcome-email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userName: formData.profile.fullName,
+              userEmail: user.email
+            })
+          });
+        } catch (error) {
+          console.error('Welcome email failed:', error);
+        }
+        navigate('/dashboard');
+      }, 1500);
     } catch (error) {
       console.error("Error finishing setup:", error);
     } finally {

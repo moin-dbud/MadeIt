@@ -7,6 +7,8 @@ import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
 import ProjectPage from "./pages/ProjectPage";
 import Portfolio from "./pages/Portfolio";
+import ContactUs from "./pages/ContactUs";
+import Support from "./pages/Support";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 export default function App() {
@@ -73,10 +75,30 @@ export default function App() {
             }
           />
 
+          <Route
+            path="/support"
+            element={
+              <ProtectedRoute>
+                <Support />
+              </ProtectedRoute>
+            }
+          />
+
           {/* PUBLIC PORTFOLIO - Accessible to anyone */}
           <Route
             path="/portfolio/:username"
             element={<Portfolio />}
+          />
+
+          {/* CONTACT US - Accessible to anyone */}
+          <Route
+            path="/contact-us"
+            element={
+              <>
+                <Navbar />
+                <ContactUs />
+              </>
+            }
           />
         </Routes>
       </BrowserRouter>

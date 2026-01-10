@@ -132,26 +132,6 @@ export const dismissFeedbackPrompt = async (userId, type) => {
 // ============================================================================
 
 /**
- * Get feedback statistics (admin only)
- * 
- * @returns {Promise<Object>} Feedback stats
- */
-export const getFeedbackStats = async () => {
-    // This would be implemented in admin dashboard
-    // For now, just a placeholder
-    return {
-        total: 0,
-        byType: {
-            first_milestone: 0,
-            first_project: 0,
-            general: 0
-        },
-        resolved: 0,
-        pending: 0
-    };
-};
-
-/**
  * Validate feedback text
  * 
  * @param {string} text - Feedback text
