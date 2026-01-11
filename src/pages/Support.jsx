@@ -254,12 +254,16 @@ export default function Support() {
 
             // Send email notification
             try {
-                const response = await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/support-ticket`, {
+                const response = await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-email`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        ...ticketData,
-                        ticketId: docRef.id
+                        type: 'supportTicket',
+                        data: {
+                            ...ticketData,
+                            ticketId: docRef.id,
+                            name: ticketData.userName
+                        }
                     })
                 });
 
