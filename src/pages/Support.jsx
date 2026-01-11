@@ -376,7 +376,7 @@ export default function Support() {
                                 required
                             >
                                 {ISSUE_TYPES.map(type => (
-                                    <option key={type.value} value={type.value}>
+                                    <option className="bg-black text-white" key={type.value} value={type.value}>
                                         {type.label}
                                     </option>
                                 ))}
@@ -400,7 +400,7 @@ export default function Support() {
                                             <option value="">No active projects</option>
                                         ) : (
                                             userProjects.map(project => (
-                                                <option key={project.id} value={project.id}>
+                                                <option className="bg-black text-white" key={project.id} value={project.id}>
                                                     {project.name}
                                                 </option>
                                             ))
@@ -490,7 +490,7 @@ export default function Support() {
                                         className="w-full px-4 py-3 rounded-xl bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-white outline-none focus:border-[#FF6B35] transition-colors"
                                         required
                                     >
-                                        <option value="">Select page...</option>
+                                        <option className="bg-black text-white" value="">Select page...</option>
                                         {PAGE_OPTIONS.map(page => (
                                             <option key={page} value={page}>{page}</option>
                                         ))}

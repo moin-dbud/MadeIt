@@ -345,11 +345,11 @@ const CohortRegistration = () => {
                                 onChange={handleInputChange}
                                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#4A7BFF] focus:outline-none focus:ring-2 focus:ring-[#4A7BFF]/20 transition-colors text-white"
                             >
-                                <option value="">Select your status</option>
-                                <option value="Student">Student</option>
-                                <option value="Fresher">Fresher</option>
-                                <option value="Working Professional">Working Professional</option>
-                                <option value="Other">Other</option>
+                                <option className='bg-black ' value="">Select your status</option>
+                                <option className='bg-black ' value="Student">Student</option>
+                                <option className='bg-black ' value="Fresher">Fresher</option>
+                                <option className='bg-black ' value="Working Professional">Working Professional</option>
+                                <option className='bg-black ' value="Other">Other</option>
                             </select>
                             {errors.status && <p className="text-red-400 text-sm mt-1">{errors.status}</p>}
                         </div>
