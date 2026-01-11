@@ -13,6 +13,10 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false)
   const { user } = useAuth();
 
+  const handleLogin = () => {
+    navigate('/login');
+  }
+
   return (
     <motion.nav
       initial={{ y: -20, opacity: 0 }}
@@ -43,7 +47,7 @@ const Navbar = () => {
         <div className='flex items-center gap-3' >
           {
             !user ? (
-              <button onClick={() => signInWithGoogle(navigate)} className='px-6 py-2 bg-[#FF6B35] hover:bg-[#ff7d4d] text-white text-sm cursor-pointer font-medium rounded-full transition-colors' >Start Building</button>
+              <button onClick={handleLogin} className='px-6 py-2 bg-[#FF6B35] hover:bg-[#ff7d4d] text-white text-sm cursor-pointer font-medium rounded-full transition-colors' >Start Building</button>
             ) : (
 
               <button onClick={async () => {

@@ -3,9 +3,16 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { signInWithGoogle} from '../firebase/auth';
 import { ShipIcon } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export const FinalCTA = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogin = () => {
+    navigate('/login');
+  }
+
   return (
     <section className="relative py-15 px-6 border-b border-white/20">
       <div className="max-w-4xl mx-auto text-center">
@@ -20,7 +27,7 @@ export const FinalCTA = () => {
             <br />
             Start finishing.
           </h2>
-          <button onClick={signInWithGoogle} className="px-12 py-5 bg-[#FF6B35] hover:bg-[#ff7d4d] cursor-pointer text-white text-lg font-semibold rounded-full transition-all hover:scale-105">
+          <button onClick={handleLogin} className="px-12 py-5 bg-[#FF6B35] hover:bg-[#ff7d4d] cursor-pointer text-white text-lg font-semibold rounded-full transition-all hover:scale-105">
             Start Building
           </button>
         </motion.div>

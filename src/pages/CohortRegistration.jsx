@@ -85,13 +85,13 @@ const CohortRegistration = () => {
             newErrors.githubUrl = 'Please enter a valid GitHub profile URL (e.g., https://github.com/username)';
         }
 
-        // Motivation validation (min 50 words)
-        const wordCount = formData.motivation.trim().split(/\s+/).filter(word => word.length > 0).length;
-        if (!formData.motivation.trim()) {
-            newErrors.motivation = 'Please tell us why you want to join';
-        } else if (wordCount < 50) {
-            newErrors.motivation = `Please write at least 50 words (currently ${wordCount} words)`;
-        }
+        // // Motivation validation (min 50 words)
+        // const wordCount = formData.motivation.trim().split(/\s+/).filter(word => word.length > 0).length;
+        // if (!formData.motivation.trim()) {
+        //     newErrors.motivation = 'Please tell us why you want to join';
+        // } else if (wordCount < 50) {
+        //     newErrors.motivation = `Please write at least 50 words (currently ${wordCount} words)`;
+        // }
 
         // Commitment validation
         if (!formData.commitment) {
@@ -407,7 +407,6 @@ const CohortRegistration = () => {
                             <textarea
                                 id="motivation"
                                 name="motivation"
-                                value={formData.motivation}
                                 onChange={handleInputChange}
                                 rows="6"
                                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#4A7BFF] focus:outline-none focus:ring-2 focus:ring-[#4A7BFF]/20 transition-colors text-white resize-none"

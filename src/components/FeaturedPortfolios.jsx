@@ -161,8 +161,8 @@ export function FeaturedPortfolios() {
                         Ready to build your own proof-of-work portfolio?
                     </p>
                     <button
-                        onClick={() => navigate('/')}
-                        className="px-6 py-3 rounded-xl bg-[#FF6B35] text-white font-medium hover:bg-[#FF6B35]/90 transition-colors inline-flex items-center gap-2"
+                        onClick={() => navigate('/login')}
+                        className="px-6 py-3 cursor-pointer rounded-xl bg-[#FF6B35] text-white font-medium hover:bg-[#FF6B35]/90 transition-colors inline-flex items-center gap-2"
                     >
                         Get Started
                         <ArrowRight size={18} />
