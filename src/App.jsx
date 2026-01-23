@@ -1,6 +1,11 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
-import { ProtectedRoute, PublicRoute } from "./components/ProtectedRoute";
+import {
+  ProtectedRoute,
+  PublicOnlyRoute,
+  ProjectOwnerRoute,
+  OptionalAuthRoute
+} from "./components/ProtectedRoute";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import About from "./pages/About";
@@ -22,29 +27,40 @@ export default function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <Routes>
-          {/* PUBLIC ROUTE - Only accessible when NOT logged in */}
+          {/* HOME - Public only (redirects if logged in) */}
           <Route
             path="/"
             element={
-              <PublicRoute>
+              <PublicOnlyRoute>
                 <>
                   <Navbar />
                   <Home />
                 </>
-              </PublicRoute>
+              </PublicOnlyRoute>
             }
           />
 
-          {/* PROTECTED ROUTES - Only accessible when logged in */}
+          {/* LOGIN - Public only (redirects if logged in) */}
+          <Route
+            path="/login"
+            element={
+              <PublicOnlyRoute>
+                <Login />
+              </PublicOnlyRoute>
+            }
+          />
+
+          {/* PROFILE SETUP - Protected (allows incomplete profiles) */}
           <Route
             path="/profile-setup"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireProfileSetup={true}>
                 <ProfileSetup />
               </ProtectedRoute>
             }
           />
 
+          {/* DASHBOARD - Protected (requires completed profile) */}
           <Route
             path="/dashboard"
             element={
@@ -54,6 +70,7 @@ export default function App() {
             }
           />
 
+          {/* PROJECTS LIST - Protected */}
           <Route
             path="/projects"
             element={
@@ -63,15 +80,19 @@ export default function App() {
             }
           />
 
+          {/* PROJECT DETAIL - Protected + Owner validation */}
           <Route
             path="/projects/:projectId"
             element={
               <ProtectedRoute>
-                <ProjectPage />
+                <ProjectOwnerRoute>
+                  <ProjectPage />
+                </ProjectOwnerRoute>
               </ProtectedRoute>
             }
           />
 
+          {/* USER PORTFOLIO - Protected */}
           <Route
             path="/portfolio"
             element={
@@ -81,6 +102,7 @@ export default function App() {
             }
           />
 
+          {/* SUPPORT - Protected */}
           <Route
             path="/support"
             element={
@@ -93,34 +115,36 @@ export default function App() {
           {/* PUBLIC PORTFOLIO - Accessible to anyone */}
           <Route
             path="/portfolio/:username"
-            element={<Portfolio />}
+            element={
+              <OptionalAuthRoute>
+                <Portfolio />
+              </OptionalAuthRoute>
+            }
           />
 
           {/* CONTACT US - Accessible to anyone */}
           <Route
             path="/contact-us"
             element={
-              <>
-                <Navbar />
-                <ContactUs />
-              </>
+              <OptionalAuthRoute>
+                <>
+                  <Navbar />
+                  <ContactUs />
+                </>
+              </OptionalAuthRoute>
             }
-          />
-
-          {/* LOGIN - Email/Password Authentication */}
-          <Route
-            path="/login"
-            element={<Login />}
           />
 
           {/* ABOUT - Accessible to anyone */}
           <Route
             path="/about"
             element={
-              <>
-                <Navbar />
-                <About />
-              </>
+              <OptionalAuthRoute>
+                <>
+                  <Navbar />
+                  <About />
+                </>
+              </OptionalAuthRoute>
             }
           />
 
@@ -128,10 +152,12 @@ export default function App() {
           <Route
             path="/privacy-policy"
             element={
-              <>
-                <Navbar />
-                <PrivacyPolicy />
-              </>
+              <OptionalAuthRoute>
+                <>
+                  <Navbar />
+                  <PrivacyPolicy />
+                </>
+              </OptionalAuthRoute>
             }
           />
 
@@ -139,10 +165,12 @@ export default function App() {
           <Route
             path="/terms-of-service"
             element={
-              <>
-                <Navbar />
-                <TermsOfService />
-              </>
+              <OptionalAuthRoute>
+                <>
+                  <Navbar />
+                  <TermsOfService />
+                </>
+              </OptionalAuthRoute>
             }
           />
 
@@ -150,10 +178,12 @@ export default function App() {
           <Route
             path="/documentation"
             element={
-              <>
-                <Navbar />
-                <Documentation />
-              </>
+              <OptionalAuthRoute>
+                <>
+                  <Navbar />
+                  <Documentation />
+                </>
+              </OptionalAuthRoute>
             }
           />
 
@@ -161,10 +191,12 @@ export default function App() {
           <Route
             path="/cohort"
             element={
-              <>
-                <Navbar />
-                <CohortRegistration />
-              </>
+              <OptionalAuthRoute>
+                <>
+                  <Navbar />
+                  <CohortRegistration />
+                </>
+              </OptionalAuthRoute>
             }
           />
         </Routes>

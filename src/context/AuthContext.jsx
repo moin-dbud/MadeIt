@@ -35,9 +35,21 @@ export const AuthProvider = ({ children }) => {
     loading
   };
 
+  // Show loading screen during initial auth check
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-[#FF6B35] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-[#A0A0A0] text-lg">Authenticating...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };

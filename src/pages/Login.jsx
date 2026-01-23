@@ -4,47 +4,15 @@ import { LogIn, Lock } from 'lucide-react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../firebase/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const Login = () => {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const location = useLocation();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-
-    // Redirect based on profile completion status
-    React.useEffect(() => {
-        if (user) {
-            // Check if user has completed profile
-            const checkProfileCompletion = async () => {
-                try {
-                    const userDocRef = doc(db, 'users', user.uid);
-                    const userDoc = await getDoc(userDocRef);
-
-                    if (userDoc.exists()) {
-                        const userData = userDoc.data();
-                        // Check if profile is completed
-                        if (userData?.onboarding?.profileCompleted === true) {
-                            navigate('/dashboard');
-                        } else {
-                            navigate('/profile-setup');
-                        }
-                    } else {
-                        // No user document, send to profile setup
-                        navigate('/profile-setup');
-                    }
-                } catch (error) {
-                    console.error('Error checking profile completion:', error);
-                    navigate('/profile-setup');
-                }
-            };
-
-            checkProfileCompletion();
-        }
-    }, [user, navigate]);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -70,14 +38,23 @@ const Login = () => {
                     githubUsername: '',
                     skills: [],
                     isAdmin: false,
-                    profileCompleted: false,
+                    onboarding: {
+                        profileCompleted: false
+                    },
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp()
                 });
                 console.log('Created Firestore user document for:', firebaseUser.email);
             }
 
-            // User will be redirected by the useEffect above when auth state updates
+            // Get redirect destination
+            const userData = userDoc.exists() ? userDoc.data() : null;
+            const profileCompleted = userData?.onboarding?.profileCompleted === true;
+            const from = location.state?.from || (profileCompleted ? '/dashboard' : '/profile-setup');
+
+            // Navigate to the appropriate page
+            navigate(from, { replace: true });
+
         } catch (err) {
             console.error('Login error:', err);
 
