@@ -1,7 +1,7 @@
-import nodemailer from 'nodemailer';
+const nodemailer = require('nodemailer');
 
 // Email configuration helper
-export const getTransporter = () => {
+const getTransporter = () => {
     return nodemailer.createTransport({
         service: 'gmail',
         auth: {
@@ -12,7 +12,7 @@ export const getTransporter = () => {
 };
 
 // Reusable email sender
-export const sendEmail = async (to, subject, html) => {
+const sendEmail = async (to, subject, html) => {
     try {
         const transporter = getTransporter();
         await transporter.sendMail({
@@ -29,7 +29,7 @@ export const sendEmail = async (to, subject, html) => {
 };
 
 // CORS headers helper
-export const setCorsHeaders = (res) => {
+const setCorsHeaders = (res) => {
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -37,7 +37,7 @@ export const setCorsHeaders = (res) => {
 };
 
 // Handle OPTIONS requests for CORS
-export const handleCorsOptions = (req, res) => {
+const handleCorsOptions = (req, res) => {
     if (req.method === 'OPTIONS') {
         setCorsHeaders(res);
         res.status(200).end();
@@ -46,3 +46,6 @@ export const handleCorsOptions = (req, res) => {
     setCorsHeaders(res);
     return false;
 };
+
+module.exports = { getTransporter, sendEmail, setCorsHeaders, handleCorsOptions };
+
