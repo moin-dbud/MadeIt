@@ -1,7 +1,6 @@
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../firebase/firebase";
 import { createContext, useContext, useEffect, useState } from "react";
-import { getUserProfile } from "../services/user.service";
+import { supabase } from "../supabase/supabase";
+import { getUserProfile, createUserIfNotExists } from "../services/user.service";
 
 const AuthContext = createContext();
 
@@ -11,26 +10,60 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
+    // 1. Get initial session
+    const getInitialSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          const authUser = {
+            ...session.user,
+            uid: session.user.id
+          };
+          setUser(authUser);
+          await createUserIfNotExists(session.user);
+          const userDoc = await getUserProfile(session.user.id);
+          setUserData(userDoc);
+        } else {
+          setUser(null);
+          setUserData(null);
+        }
+      } catch (err) {
+        console.error("Error getting initial session:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      if (firebaseUser) {
-        // Fetch user document to get isAdmin and other metadata
-        const userDoc = await getUserProfile(firebaseUser.uid);
+    getInitialSession();
+
+    // 2. Subscribe to auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const authUser = {
+          ...session.user,
+          uid: session.user.id
+        };
+        setUser(authUser);
+        await createUserIfNotExists(session.user);
+        const userDoc = await getUserProfile(session.user.id);
         setUserData(userDoc);
       } else {
+        setUser(null);
         setUserData(null);
       }
-
       setLoading(false);
     });
 
-    return () => unsub();
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const value = {
     user,
     userData,
+    setUserData,
     isAdmin: userData?.isAdmin === true,
     loading
   };

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { db, auth } from '../firebase/firebase';
 import { Mail, Building2, Calendar, Eye, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '../supabase/supabase';
+import { useAuth } from '../context/AuthContext';
 
 /**
- * RecruiterMessages Component
+ * RecruiterMessages Component (Supabase)
  * 
  * Displays inbound recruiter inquiries for portfolio owner
  * Shows in Dashboard
@@ -14,49 +14,44 @@ export default function RecruiterMessages() {
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedMessage, setSelectedMessage] = useState(null);
-    const user = auth.currentUser;
+    const { user } = useAuth();
 
     useEffect(() => {
         if (!user) return;
 
         const fetchMessages = async () => {
-            console.log('🔍 Fetching recruiter messages for user:', user.uid);
+            console.log('🔍 Fetching recruiter messages for user:', user.id || user.uid);
 
             try {
-                const q = query(
-                    collection(db, 'recruiterInquiries'),
-                    where('portfolioOwnerId', '==', user.uid),
-                    orderBy('timestamp', 'desc')
-                );
+                const userId = user.id || user.uid;
+                const { data, error } = await supabase
+                    .from('recruiter_inquiries')
+                    .select('*')
+                    .eq('portfolio_owner_id', userId)
+                    .order('created_at', { ascending: false });
 
-                console.log('📡 Executing Firestore query...');
-                const querySnapshot = await getDocs(q);
-                console.log('✅ Query successful. Documents found:', querySnapshot.size);
+                if (error) {
+                    console.error('❌ Error fetching recruiter messages:', error);
+                    throw error;
+                }
 
-                const fetchedMessages = [];
-
-                querySnapshot.forEach((doc) => {
-                    console.log('📄 Message document:', doc.id, doc.data());
-                    fetchedMessages.push({
-                        id: doc.id,
-                        ...doc.data()
-                    });
-                });
+                const fetchedMessages = (data || []).map(item => ({
+                    id: item.id,
+                    portfolioOwnerId: item.portfolio_owner_id,
+                    recruiterName: item.recruiter_name,
+                    recruiterEmail: item.recruiter_email,
+                    company: item.company,
+                    message: item.message,
+                    isProfessionalOpportunity: item.is_professional_opportunity,
+                    status: item.status,
+                    replied: item.replied,
+                    timestamp: item.created_at
+                }));
 
                 console.log('📬 Total messages fetched:', fetchedMessages.length);
                 setMessages(fetchedMessages);
             } catch (error) {
                 console.error('❌ Error fetching recruiter messages:', error);
-                console.error('Error code:', error.code);
-                console.error('Error message:', error.message);
-
-                if (error.code === 'failed-precondition') {
-                    console.error('🔥 FIRESTORE INDEX REQUIRED!');
-                    console.error('Create an index for: collection=recruiterInquiries, fields=[portfolioOwnerId, timestamp]');
-                    console.error('Check the error message for a link to create the index.');
-                } else if (error.code === 'permission-denied') {
-                    console.error('🔒 PERMISSION DENIED - Check Firestore Security Rules!');
-                }
             } finally {
                 setLoading(false);
             }
@@ -67,9 +62,10 @@ export default function RecruiterMessages() {
 
     const markAsRead = async (messageId) => {
         try {
-            await updateDoc(doc(db, 'recruiterInquiries', messageId), {
-                status: 'read'
-            });
+            await supabase
+                .from('recruiter_inquiries')
+                .update({ status: 'read' })
+                .eq('id', messageId);
 
             setMessages(messages.map(msg =>
                 msg.id === messageId ? { ...msg, status: 'read' } : msg
@@ -88,7 +84,7 @@ export default function RecruiterMessages() {
 
     const formatDate = (timestamp) => {
         if (!timestamp) return 'Recently';
-        const date = timestamp.toDate();
+        const date = new Date(timestamp);
         const now = new Date();
         const diffTime = Math.abs(now - date);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));

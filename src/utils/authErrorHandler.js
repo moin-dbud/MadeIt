@@ -1,98 +1,50 @@
-import { auth } from "../firebase/firebase";
-import { signOut } from "firebase/auth";
+import { supabase } from "../supabase/supabase";
 
 /**
- * Auth Error Handler
- * 
- * Utilities for handling authentication errors gracefully.
+ * Auth Error Handler (Supabase)
  */
 
-/**
- * Check if error is an auth error
- */
 export const isAuthError = (error) => {
     if (!error) return false;
 
-    const authErrorCodes = [
-        'auth/user-not-found',
-        'auth/wrong-password',
-        'auth/invalid-credential',
-        'auth/user-disabled',
-        'auth/too-many-requests',
-        'auth/network-request-failed',
-        'auth/expired-action-code',
-        'auth/invalid-action-code',
-        'auth/user-token-expired',
-        'auth/requires-recent-login',
-        'permission-denied',
-        'unauthenticated'
-    ];
+    const message = (error.message || '').toLowerCase();
+    const status = error.status;
 
-    return authErrorCodes.some(code =>
-        error.code?.includes(code) ||
-        error.message?.toLowerCase().includes(code.replace('auth/', ''))
+    return (
+        status === 401 ||
+        status === 403 ||
+        message.includes('jwt') ||
+        message.includes('token') ||
+        message.includes('session') ||
+        message.includes('auth') ||
+        message.includes('permission') ||
+        message.includes('unauthorized')
     );
 };
 
-/**
- * Get user-friendly auth error message
- */
 export const getAuthErrorMessage = (error) => {
     if (!error) return 'An unknown error occurred';
 
-    const code = error.code || '';
     const message = error.message || '';
 
-    // Session expired
-    if (code.includes('token-expired') || code.includes('requires-recent-login')) {
-        return 'Your session has expired. Please log in again to continue.';
-    }
-
-    // Permission denied
-    if (code.includes('permission-denied') || message.includes('permission')) {
-        return 'You don\'t have permission to access this resource. Please log in again.';
-    }
-
-    // Network issues
-    if (code.includes('network-request-failed')) {
-        return 'Network error. Please check your connection and try again.';
-    }
-
-    // User not found
-    if (code.includes('user-not-found')) {
-        return 'Account not found. Please check your credentials.';
-    }
-
-    // Invalid credentials
-    if (code.includes('wrong-password') || code.includes('invalid-credential')) {
+    if (message.includes('Invalid login credentials')) {
         return 'Invalid email or password. Please try again.';
     }
 
-    // Account disabled
-    if (code.includes('user-disabled')) {
-        return 'This account has been disabled. Please contact support.';
+    if (message.includes('Email not confirmed')) {
+        return 'Please confirm your email address before logging in.';
     }
 
-    // Too many attempts
-    if (code.includes('too-many-requests')) {
-        return 'Too many failed attempts. Please try again later.';
+    if (message.includes('JWT') || message.includes('expired')) {
+        return 'Your session has expired. Please log in again to continue.';
     }
 
-    // Default
-    return 'Authentication error. Please try logging in again.';
+    return message || 'Authentication error. Please try logging in again.';
 };
 
-/**
- * Handle auth error and redirect if needed
- * 
- * @param {Error} error - The error object
- * @param {Function} navigate - React Router navigate function
- * @param {Object} options - Additional options
- * @returns {boolean} - Whether the error was handled
- */
 export const handleAuthError = async (error, navigate, options = {}) => {
     if (!isAuthError(error)) {
-        return false; // Not an auth error, let caller handle it
+        return false;
     }
 
     const {
@@ -102,39 +54,29 @@ export const handleAuthError = async (error, navigate, options = {}) => {
     } = options;
 
     console.error('Auth error:', error);
-
-    // Get friendly error message
     const errorMessage = getAuthErrorMessage(error);
 
-    // Sign out user
     try {
-        await signOut(auth);
+        await supabase.auth.signOut();
     } catch (signOutError) {
         console.error('Error signing out:', signOutError);
     }
 
-    // Prepare redirect
-    const currentPath = window.location.pathname;
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
     const redirectUrl = returnUrl || (preserveLocation ? currentPath : '/dashboard');
 
-    // Navigate to home with error message
-    navigate('/', {
-        state: {
-            error: showMessage ? errorMessage : null,
-            returnUrl: redirectUrl
-        }
-    });
+    if (navigate) {
+        navigate('/', {
+            state: {
+                error: showMessage ? errorMessage : null,
+                returnUrl: redirectUrl
+            }
+        });
+    }
 
-    return true; // Error was handled
+    return true;
 };
 
-/**
- * Wrap async function with auth error handling
- * 
- * Usage:
- * const safeFunction = withAuthErrorHandling(myAsyncFunction, navigate);
- * await safeFunction();
- */
 export const withAuthErrorHandling = (fn, navigate, options = {}) => {
     return async (...args) => {
         try {
@@ -142,35 +84,21 @@ export const withAuthErrorHandling = (fn, navigate, options = {}) => {
         } catch (error) {
             const handled = await handleAuthError(error, navigate, options);
             if (!handled) {
-                throw error; // Re-throw if not an auth error
+                throw error;
             }
         }
     };
 };
 
-/**
- * Check if user session is valid
- */
-export const isSessionValid = () => {
-    const user = auth.currentUser;
-    if (!user) return false;
-
-    // Check if token is expired (Firebase handles this internally)
-    // We just check if user exists
-    return true;
+export const isSessionValid = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return !!session;
 };
 
-/**
- * Refresh user session
- */
 export const refreshSession = async () => {
-    const user = auth.currentUser;
-    if (!user) return false;
-
     try {
-        // Force token refresh
-        await user.getIdToken(true);
-        return true;
+        const { data, error } = await supabase.auth.refreshSession();
+        return !error && !!data.session;
     } catch (error) {
         console.error('Error refreshing session:', error);
         return false;

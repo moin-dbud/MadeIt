@@ -1,43 +1,17 @@
-// src/firebase/firestore.js
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "./firebase";
+import { supabase } from "../supabase/supabase";
+import { createUserIfNotExists, getUserProfile, updateUserProfile } from "../services/user.service";
 
-export const createUserIfNotExists = async (user) => {
-  if (!user) return;
-
-  const userRef = doc(db, "users", user.uid);
-  const userSnap = await getDoc(userRef);
-
-  if (!userSnap.exists()) {
-    await setDoc(userRef, {
-      uid: user.uid,
-      name: user.displayName || "",
-      email: user.email,
-      photoURL: user.photoURL || "",
-      createdAt: serverTimestamp(),
-
-      // profile state
-      profileCompleted: false,
-
-      // placeholders for future
-      role: "student",
-      onboardingStep: 1,
-    });
-  }
-};
+export { createUserIfNotExists };
 
 /**
  * Admin function: Verify a milestone submission
  */
 export const verifyMilestone = async (userId, milestoneId, adminId) => {
-  const userRef = doc(db, "users", userId);
-  const userDoc = await getDoc(userRef);
+  const userDoc = await getUserProfile(userId);
+  if (!userDoc) throw new Error("User not found");
 
-  if (!userDoc.exists()) throw new Error("User not found");
-
-  const userData = userDoc.data();
-  const submissions = userData.activeProject?.submissions || {};
-  const completedMilestones = userData.activeProject?.completedMilestones || [];
+  const submissions = userDoc.activeProject?.submissions || {};
+  const completedMilestones = userDoc.activeProject?.completedMilestones || [];
 
   if (!submissions[milestoneId]) {
     throw new Error("Milestone submission not found");
@@ -47,7 +21,7 @@ export const verifyMilestone = async (userId, milestoneId, adminId) => {
   submissions[milestoneId] = {
     ...submissions[milestoneId],
     verificationStatus: "verified",
-    verifiedAt: serverTimestamp(),
+    verifiedAt: new Date().toISOString(),
     verifiedBy: adminId
   };
 
@@ -56,9 +30,14 @@ export const verifyMilestone = async (userId, milestoneId, adminId) => {
     ? completedMilestones
     : [...completedMilestones, milestoneId];
 
-  await updateDoc(userRef, {
-    "activeProject.submissions": submissions,
-    "activeProject.completedMilestones": updatedCompletedMilestones
+  const updatedActiveProject = {
+    ...userDoc.activeProject,
+    submissions,
+    completedMilestones: updatedCompletedMilestones
+  };
+
+  await updateUserProfile(userId, {
+    activeProject: updatedActiveProject
   });
 
   return { success: true };
@@ -68,13 +47,10 @@ export const verifyMilestone = async (userId, milestoneId, adminId) => {
  * Admin function: Flag a milestone submission for review
  */
 export const flagMilestone = async (userId, milestoneId, adminId, adminNote) => {
-  const userRef = doc(db, "users", userId);
-  const userDoc = await getDoc(userRef);
+  const userDoc = await getUserProfile(userId);
+  if (!userDoc) throw new Error("User not found");
 
-  if (!userDoc.exists()) throw new Error("User not found");
-
-  const userData = userDoc.data();
-  const submissions = userData.activeProject?.submissions || {};
+  const submissions = userDoc.activeProject?.submissions || {};
 
   if (!submissions[milestoneId]) {
     throw new Error("Milestone submission not found");
@@ -83,13 +59,18 @@ export const flagMilestone = async (userId, milestoneId, adminId, adminNote) => 
   submissions[milestoneId] = {
     ...submissions[milestoneId],
     verificationStatus: "flagged",
-    flaggedAt: serverTimestamp(),
+    flaggedAt: new Date().toISOString(),
     flaggedBy: adminId,
     adminNote: adminNote
   };
 
-  await updateDoc(userRef, {
-    "activeProject.submissions": submissions
+  const updatedActiveProject = {
+    ...userDoc.activeProject,
+    submissions
+  };
+
+  await updateUserProfile(userId, {
+    activeProject: updatedActiveProject
   });
 
   return { success: true };
@@ -99,14 +80,11 @@ export const flagMilestone = async (userId, milestoneId, adminId, adminNote) => 
  * Admin function: Reject a milestone submission
  */
 export const rejectMilestone = async (userId, milestoneId, adminId, adminNote) => {
-  const userRef = doc(db, "users", userId);
-  const userDoc = await getDoc(userRef);
+  const userDoc = await getUserProfile(userId);
+  if (!userDoc) throw new Error("User not found");
 
-  if (!userDoc.exists()) throw new Error("User not found");
-
-  const userData = userDoc.data();
-  const submissions = userData.activeProject?.submissions || {};
-  const completedMilestones = userData.activeProject?.completedMilestones || [];
+  const submissions = userDoc.activeProject?.submissions || {};
+  const completedMilestones = userDoc.activeProject?.completedMilestones || [];
 
   if (!submissions[milestoneId]) {
     throw new Error("Milestone submission not found");
@@ -115,7 +93,7 @@ export const rejectMilestone = async (userId, milestoneId, adminId, adminNote) =
   submissions[milestoneId] = {
     ...submissions[milestoneId],
     verificationStatus: "rejected",
-    rejectedAt: serverTimestamp(),
+    rejectedAt: new Date().toISOString(),
     rejectedBy: adminId,
     adminNote: adminNote
   };
@@ -123,9 +101,14 @@ export const rejectMilestone = async (userId, milestoneId, adminId, adminNote) =
   // Remove from completedMilestones if it's there
   const updatedCompletedMilestones = completedMilestones.filter(id => id !== milestoneId);
 
-  await updateDoc(userRef, {
-    "activeProject.submissions": submissions,
-    "activeProject.completedMilestones": updatedCompletedMilestones
+  const updatedActiveProject = {
+    ...userDoc.activeProject,
+    submissions,
+    completedMilestones: updatedCompletedMilestones
+  };
+
+  await updateUserProfile(userId, {
+    activeProject: updatedActiveProject
   });
 
   return { success: true };

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { auth, db } from "../firebase/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { useAuth } from "../context/AuthContext";
+import { getUserProfile, updateUserProfile } from "../services/user.service";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Lock, Clock, Award, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,7 +10,7 @@ import { PageLoader, ProjectCardSkeleton } from "../components/SkeletonLoaders";
 import { EMAIL_CONFIG } from '../config/email';
 
 export default function Projects() {
-    const user = auth.currentUser;
+    const { user, userData: authUserData } = useAuth();
     const navigate = useNavigate();
 
     const [userData, setUserData] = useState(null);
@@ -31,18 +31,14 @@ export default function Projects() {
             }
 
             try {
-                const userRef = doc(db, "users", user.uid);
-                const userSnap = await getDoc(userRef);
+                const userId = user.id || user.uid;
+                const data = await getUserProfile(userId);
 
-                if (userSnap.exists()) {
-                    const data = userSnap.data();
-
-                    // Redirect if profile not completed
+                if (data) {
                     if (!data.onboarding?.profileCompleted) {
                         navigate("/profile-setup");
                         return;
                     }
-
                     setUserData(data);
                 } else {
                     navigate("/profile-setup");
@@ -69,8 +65,8 @@ export default function Projects() {
 
         setStarting(true);
         try {
-            const userRef = doc(db, "users", user.uid);
-            await updateDoc(userRef, {
+            const userId = user.id || user.uid;
+            await updateUserProfile(userId, {
                 activeProject: {
                     id: selectedProject.projectId,
                     name: selectedProject.name,

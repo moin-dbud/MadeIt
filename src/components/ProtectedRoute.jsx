@@ -1,7 +1,5 @@
 import { Navigate, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "../firebase/firebase";
 import { useState, useEffect } from "react";
 
 /**
@@ -110,11 +108,11 @@ export function ProjectOwnerRoute({ children }) {
                     return;
                 }
 
-                // Check if user owns this project
-                const projectRef = doc(db, "users", user.uid, "projects", projectId);
-                const projectDoc = await getDoc(projectRef);
+                // Check activeProject or projects object
+                const activeId = userData?.activeProject?.id;
+                const ownedProjects = userData?.projects || {};
 
-                if (projectDoc.exists()) {
+                if (activeId === projectId || ownedProjects[projectId]) {
                     setHasAccess(true);
                 } else {
                     setHasAccess(false);

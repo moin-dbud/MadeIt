@@ -1,9 +1,8 @@
-import { signOut } from "firebase/auth";
-import { auth } from "./firebase";
+import { supabase } from "../supabase/supabase";
 
 export const logoutUser = async () => {
   try {
-    await signOut(auth);
+    await supabase.auth.signOut();
   } catch (err) {
     console.error("Logout error:", err);
   }

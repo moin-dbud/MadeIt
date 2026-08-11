@@ -4,7 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import admin from 'firebase-admin';
+import { createClient } from '@supabase/supabase-js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,22 +12,16 @@ const __dirname = path.dirname(__filename);
 // Load .env from parent directory
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-// Initialize Firebase Admin SDK
-try {
-    const serviceAccount = {
-        type: 'service_account',
-        project_id: process.env.FIREBASE_PROJECT_ID,
-        private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        client_email: process.env.FIREBASE_CLIENT_EMAIL,
-    };
-
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
-    console.log('✅ Firebase Admin initialized');
-} catch (error) {
-    console.log('⚠️  Firebase Admin not initialized - ticket status monitoring disabled');
-    console.log('   Add FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL to .env to enable');
+// Initialize Supabase Admin client
+let supabaseAdmin = null;
+if (process.env.VITE_SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY)) {
+    supabaseAdmin = createClient(
+        process.env.VITE_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
+    );
+    console.log('✅ Supabase Client initialized in server');
+} else {
+    console.log('⚠️  Supabase Client not initialized in server - missing env vars');
 }
 
 const app = express();
@@ -842,69 +836,22 @@ app.post('/api/send-milestone-rejected-email', async (req, res) => {
     res.json(result);
 });
 
-// ===== FIRESTORE LISTENER FOR TICKET STATUS CHANGES =====
-// Cache to track previous ticket statuses
-const ticketStatusCache = new Map();
-
+// ===== SUPABASE LISTENER FOR TICKET STATUS CHANGES =====
 const setupTicketStatusListener = () => {
+    if (!supabaseAdmin) {
+        console.log('ℹ️  Supabase listener not started (standalone mode)');
+        return;
+    }
     try {
-        const db = admin.firestore();
-
-        db.collection('supportTickets').onSnapshot((snapshot) => {
-            snapshot.docChanges().forEach(async (change) => {
-                const ticketId = change.doc.id;
-                const currentData = change.doc.data();
-                const currentStatus = currentData.status;
-
-                if (change.type === 'modified') {
-                    // Get previous status from cache
-                    const previousStatus = ticketStatusCache.get(ticketId);
-
-                    if (previousStatus && previousStatus !== currentStatus) {
-                        console.log(`🔔 Ticket #${ticketId.slice(0, 8)} status changed: ${previousStatus} → ${currentStatus}`);
-
-                        const ticketData = {
-                            ticketId: ticketId,
-                            userName: currentData.userName || 'User',
-                            userEmail: currentData.userEmail,
-                            issueType: currentData.issueType,
-                            resolutionMessage: currentData.resolutionMessage || null
-                        };
-
-                        try {
-                            if (currentStatus === 'in_progress' && previousStatus === 'open') {
-                                await fetch('http://localhost:3001/api/send-ticket-inprogress-email', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(ticketData)
-                                });
-                                console.log(`✅ Sent "In Progress" email for ticket #${ticketId.slice(0, 8)}`);
-                            }
-
-                            if (currentStatus === 'resolved' && (previousStatus === 'in_progress' || previousStatus === 'open')) {
-                                await fetch('http://localhost:3001/api/send-ticket-resolved-email', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(ticketData)
-                                });
-                                console.log(`✅ Sent "Resolved" email for ticket #${ticketId.slice(0, 8)}`);
-                            }
-                        } catch (emailError) {
-                            console.error('❌ Email notification failed:', emailError);
-                        }
-                    }
-                }
-
-                // Update cache with current status
-                ticketStatusCache.set(ticketId, currentStatus);
-            });
-        }, (error) => {
-            console.error('❌ Firestore listener error:', error);
-        });
-
-        console.log('🔥 Firestore ticket status listener active');
-    } catch (error) {
-        console.log('⚠️  Firestore listener not started - Firebase Admin not initialized');
+        supabaseAdmin
+            .channel('public:support_tickets')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'support_tickets' }, (payload) => {
+                console.log('🔔 Support ticket status change detected in Supabase:', payload.new);
+            })
+            .subscribe();
+        console.log('⚡ Supabase ticket status listener active');
+    } catch (err) {
+        console.error('Error starting Supabase listener:', err);
     }
 };
 
@@ -913,6 +860,5 @@ app.listen(PORT, () => {
     console.log(`🚀 Email server running on http://localhost:${PORT}`);
     console.log(`📧 Using email: ${process.env.EMAIL_USER}`);
 
-    // Setup Firestore listener after server starts
     setupTicketStatusListener();
 });

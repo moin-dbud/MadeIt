@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { LogIn, Lock } from 'lucide-react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth, db } from '../firebase/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { supabase } from '../supabase/supabase';
+import { getUserProfile, createUserIfNotExists } from '../services/user.service';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const Login = () => {
@@ -20,55 +19,35 @@ const Login = () => {
         setLoading(true);
 
         try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            const firebaseUser = userCredential.user;
+            const { data, error: authError } = await supabase.auth.signInWithPassword({
+                email: email.trim(),
+                password
+            });
 
-            // Check if user document exists in Firestore
-            const userDocRef = doc(db, 'users', firebaseUser.uid);
-            const userDoc = await getDoc(userDocRef);
-
-            // If user document doesn't exist, create it
-            if (!userDoc.exists()) {
-                await setDoc(userDocRef, {
-                    uid: firebaseUser.uid,
-                    email: firebaseUser.email,
-                    displayName: firebaseUser.displayName || '',
-                    photoURL: firebaseUser.photoURL || '',
-                    bio: '',
-                    githubUsername: '',
-                    skills: [],
-                    isAdmin: false,
-                    onboarding: {
-                        profileCompleted: false
-                    },
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
-                });
-                console.log('Created Firestore user document for:', firebaseUser.email);
+            if (authError) {
+                throw authError;
             }
 
-            // Get redirect destination
-            const userData = userDoc.exists() ? userDoc.data() : null;
+            const sessionUser = data.user;
+            await createUserIfNotExists(sessionUser);
+
+            const userData = await getUserProfile(sessionUser.id);
             const profileCompleted = userData?.onboarding?.profileCompleted === true;
             const from = location.state?.from || (profileCompleted ? '/dashboard' : '/profile-setup');
 
-            // Navigate to the appropriate page
             navigate(from, { replace: true });
 
         } catch (err) {
             console.error('Login error:', err);
 
-            // User-friendly error messages
-            if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+            if (err.message?.includes('Invalid login credentials') || err.status === 400) {
                 setError('Invalid email or password. Please try again.');
-            } else if (err.code === 'auth/user-not-found') {
-                setError('No account found with this email. Please contact admin.');
-            } else if (err.code === 'auth/too-many-requests') {
+            } else if (err.message?.includes('Email not confirmed')) {
+                setError('Please confirm your email address before logging in.');
+            } else if (err.status === 429) {
                 setError('Too many failed login attempts. Please try again later.');
-            } else if (err.code === 'auth/invalid-email') {
-                setError('Please enter a valid email address.');
             } else {
-                setError('An error occurred. Please try again.');
+                setError(err.message || 'An error occurred. Please try again.');
             }
         } finally {
             setLoading(false);

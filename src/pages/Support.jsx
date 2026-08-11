@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { db } from "../firebase/firebase";
-import { collection, addDoc, query, where, orderBy, getDocs, serverTimestamp } from "firebase/firestore";
+import { supabase } from "../supabase/supabase";
+import { getUserProfile } from "../services/user.service";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ArrowLeft,
@@ -98,16 +98,12 @@ export default function Support() {
             }
 
             try {
-                // Fetch user data
-                const { doc, getDoc } = await import("firebase/firestore");
-                const userRef = doc(db, "users", user.uid);
-                const userSnap = await getDoc(userRef);
+                const userId = user.id || user.uid;
+                const data = await getUserProfile(userId);
 
-                if (userSnap.exists()) {
-                    const data = userSnap.data();
+                if (data) {
                     setUserData(data);
 
-                    // Get user's projects
                     if (data.activeProject) {
                         setUserProjects([data.activeProject]);
                         setFormData(prev => ({
@@ -118,18 +114,34 @@ export default function Support() {
                     }
                 }
 
-                // Fetch user's tickets
-                const ticketsQuery = query(
-                    collection(db, "supportTickets"),
-                    where("userId", "==", user.uid),
-                    orderBy("createdAt", "desc")
-                );
-                const ticketsSnap = await getDocs(ticketsQuery);
-                const ticketsData = ticketsSnap.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                setTickets(ticketsData);
+                // Fetch user's tickets from Supabase
+                const { data: ticketsData, error: ticketsError } = await supabase
+                    .from("support_tickets")
+                    .select("*")
+                    .eq("user_id", userId)
+                    .order("created_at", { ascending: false });
+
+                if (ticketsError) {
+                    console.error("Error fetching support tickets:", ticketsError);
+                } else if (ticketsData) {
+                    const mappedTickets = ticketsData.map(t => ({
+                        id: t.id,
+                        ticketId: t.ticket_id,
+                        userId: t.user_id,
+                        userName: t.user_name,
+                        userEmail: t.user_email,
+                        issueType: t.issue_type,
+                        message: t.message,
+                        title: t.title,
+                        page: t.page,
+                        subject: t.subject,
+                        currentRepo: t.current_repo,
+                        newRepo: t.new_repo,
+                        status: t.status,
+                        createdAt: t.created_at
+                    }));
+                    setTickets(mappedTickets);
+                }
             } catch (error) {
                 console.error("Error fetching data:", error);
             } finally {
@@ -248,9 +260,35 @@ export default function Support() {
                     break;
             }
 
-            // Save to Firestore
-            const docRef = await addDoc(collection(db, "supportTickets"), ticketData);
-            ticketData.id = docRef.id;
+            // Save to Supabase
+            const generatedTicketId = `ticket_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            const { data: insertedTicket, error: insertErr } = await supabase
+                .from("support_tickets")
+                .insert({
+                    ticket_id: generatedTicketId,
+                    user_id: user.id || user.uid,
+                    user_name: userData?.profile?.fullName || user.displayName || "User",
+                    user_email: user.email || userData?.profile?.email || "",
+                    issue_type: formData.issueType,
+                    message: ticketData.message || "",
+                    title: formData.title || null,
+                    page: formData.page || null,
+                    subject: formData.subject || null,
+                    current_repo: formData.currentRepo || null,
+                    new_repo: formData.newRepo || null,
+                    status: "open",
+                    created_at: new Date().toISOString()
+                })
+                .select("id")
+                .single();
+
+            if (insertErr) {
+                console.error("Error creating ticket in Supabase:", insertErr);
+                throw insertErr;
+            }
+
+            ticketData.id = insertedTicket.id;
+            ticketData.ticketId = generatedTicketId;
 
             // Send email notification
             try {

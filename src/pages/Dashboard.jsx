@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
-import { auth, db } from "../firebase/firebase";
-import { doc, getDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
-import { signOut } from "firebase/auth";
+import { supabase } from "../supabase/supabase";
+import { getUserProfile } from "../services/user.service";
+import { logoutUser } from "../firebase/logout";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Rocket, CheckCircle2, Calendar, ExternalLink, User, LogOut, X, HelpCircle, Shield, Clock, Eye, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,7 +10,8 @@ import LoadingButton from "../components/LoadingButton";
 import { PageLoader } from "../components/SkeletonLoaders";
 import RecruiterMessages from "../components/RecruiterMessages";
 import { useAuth } from "../context/AuthContext";
-import { EMAIL_CONFIG } from '../config/email';
+import { submitFeedback, dismissFeedbackPrompt } from "../utils/feedback";
+import { updateUserProfile, mapUserRowToData } from "../services/user.service";
 
 export default function Dashboard() {
     const { user, isAdmin, loading: authLoading } = useAuth();
@@ -38,7 +39,6 @@ export default function Dashboard() {
     // ---- FETCH USER DATA ----
     useEffect(() => {
         const fetchUserData = async () => {
-            // Wait for auth to be ready
             if (authLoading) {
                 return;
             }
@@ -49,13 +49,10 @@ export default function Dashboard() {
             }
 
             try {
-                const userRef = doc(db, "users", user.uid);
-                const userSnap = await getDoc(userRef);
+                const userId = user.id || user.uid;
+                const data = await getUserProfile(userId);
 
-                if (userSnap.exists()) {
-                    const data = userSnap.data();
-
-                    // Redirect if profile not completed
+                if (data) {
                     if (!data.onboarding?.profileCompleted) {
                         navigate("/profile-setup");
                         return;
@@ -100,44 +97,20 @@ export default function Dashboard() {
     // ---- HANDLE LOGOUT ----
     const handleLogout = async () => {
         try {
-            await signOut(auth);
+            await logoutUser();
             navigate("/");
         } catch (error) {
             console.error("Error logging out:", error);
         }
     };
 
-    // ---- FEEDBACK HANDLERS ----
-    const handleFeedbackSubmit = async (feedbackText) => {
-        try {
-            await submitFeedback(user.uid, {
-                type: feedbackType,
-                text: feedbackText,
-                projectId: feedbackContext.projectId,
-                milestoneId: feedbackContext.milestoneId
-            });
-
-            console.log('✅ Feedback submitted successfully');
-            setShowFeedbackModal(false);
-        } catch (error) {
-            console.error('Error submitting feedback:', error);
-        }
-    };
-
-    const handleFeedbackDismiss = async () => {
-        if (feedbackType && user) {
-            await dismissFeedbackPrompt(user.uid, feedbackType);
-        }
-        setShowFeedbackModal(false);
-    };
-
     // ---- OPEN MANAGE ACCOUNT MODAL ----
     const openManageAccount = () => {
         setModalData({
-            profile: { ...userData.profile },
-            education: { ...userData.education },
-            socials: { ...userData.socials },
-            settings: { ...userData.settings },
+            profile: { ...(userData?.profile || {}) },
+            education: { ...(userData?.education || {}) },
+            socials: { ...(userData?.socials || {}) },
+            settings: { ...(userData?.settings || {}) },
         });
         setShowDropdown(false);
         setShowModal(true);
@@ -149,15 +122,14 @@ export default function Dashboard() {
 
         setSaving(true);
         try {
-            const userRef = doc(db, "users", user.uid);
-            await updateDoc(userRef, {
+            const userId = user.id || user.uid;
+            await updateUserProfile(userId, {
                 profile: modalData.profile,
                 education: modalData.education,
                 socials: modalData.socials,
                 settings: modalData.settings,
             });
 
-            // Update local state
             setUserData((prev) => ({
                 ...prev,
                 profile: modalData.profile,
@@ -190,166 +162,6 @@ export default function Dashboard() {
             .join("")
             .toUpperCase()
             .slice(0, 2);
-    };
-
-    // ---- ADMIN: FETCH PENDING SUBMISSIONS ----
-    const fetchPendingSubmissions = async () => {
-        if (!isAdmin) return;
-
-        setLoadingSubmissions(true);
-        try {
-            const usersRef = collection(db, "users");
-            const usersSnap = await getDocs(usersRef);
-
-            const pending = [];
-
-            usersSnap.forEach((userDoc) => {
-                const userData = userDoc.data();
-                const submissions = userData.activeProject?.submissions || {};
-
-                Object.entries(submissions).forEach(([milestoneId, submission]) => {
-                    if (submission.verificationStatus === "under_review") {
-                        pending.push({
-                            userId: userDoc.id,
-                            userName: userData.profile?.fullName || userData.email || "Unknown User",
-                            userEmail: userData.email,
-                            projectId: userData.activeProject?.id,
-                            projectName: userData.activeProject?.name,
-                            milestoneId,
-                            submission,
-                            submittedAt: submission.submittedAt
-                        });
-                    }
-                });
-            });
-
-            // Sort by submission date (newest first)
-            pending.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
-
-            setPendingSubmissions(pending);
-        } catch (error) {
-            console.error("Error fetching pending submissions:", error);
-        } finally {
-            setLoadingSubmissions(false);
-        }
-    };
-
-    // ---- ADMIN: FETCH PENDING SUBMISSIONS ON LOAD ----
-    useEffect(() => {
-        if (isAdmin && !loading) {
-            fetchPendingSubmissions();
-        }
-    }, [isAdmin, loading]);
-
-    // ---- ADMIN: HANDLE REVIEW DECISION ----
-    const handleReviewDecision = async () => {
-        if (!selectedSubmission || !reviewAction) return;
-
-        setProcessing(true);
-        try {
-            const { verifyMilestone, flagMilestone, rejectMilestone } = await import("../firebase/firestore");
-
-            if (reviewAction === "verify") {
-                await verifyMilestone(selectedSubmission.userId, selectedSubmission.milestoneId, user.uid);
-
-                // Send verification email to user
-                try {
-                    console.log('📧 Sending verification email to:', selectedSubmission.userEmail);
-                    const response = await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-milestone-verified-email`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            userName: selectedSubmission.userName,
-                            userEmail: selectedSubmission.userEmail,
-                            projectName: selectedSubmission.projectName,
-                            milestoneName: selectedSubmission.milestoneName || `Milestone ${selectedSubmission.milestoneId}`,
-                            milestoneId: selectedSubmission.milestoneId
-                        })
-                    });
-                    const result = await response.json();
-                    console.log('📧 Verification email result:', result);
-                } catch (emailError) {
-                    console.error('❌ Verification email failed:', emailError);
-                }
-
-                alert("✅ Milestone verified successfully!");
-            } else if (reviewAction === "flag") {
-                if (!adminNote.trim()) {
-                    alert("Please provide a note before flagging.");
-                    setProcessing(false);
-                    return;
-                }
-                await flagMilestone(selectedSubmission.userId, selectedSubmission.milestoneId, user.uid, adminNote);
-
-                // Send flag email to user
-                try {
-                    console.log('📧 Sending flag email to:', selectedSubmission.userEmail);
-                    const response = await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-milestone-flagged-email`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            userName: selectedSubmission.userName,
-                            userEmail: selectedSubmission.userEmail,
-                            projectName: selectedSubmission.projectName,
-                            milestoneName: selectedSubmission.milestoneName || `Milestone ${selectedSubmission.milestoneId}`,
-                            milestoneId: selectedSubmission.milestoneId,
-                            adminNote: adminNote
-                        })
-                    });
-                    const result = await response.json();
-                    console.log('📧 Flag email result:', result);
-                } catch (emailError) {
-                    console.error('❌ Flag email failed:', emailError);
-                }
-
-                alert("⚠️ Milestone flagged. User will be notified.");
-            } else if (reviewAction === "reject") {
-                if (!adminNote.trim()) {
-                    alert("Please provide a reason before rejecting.");
-                    setProcessing(false);
-                    return;
-                }
-                await rejectMilestone(selectedSubmission.userId, selectedSubmission.milestoneId, user.uid, adminNote);
-
-                // Send rejection email to user
-                try {
-                    console.log('📧 Sending rejection email to:', selectedSubmission.userEmail);
-                    const response = await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-milestone-rejected-email`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            userName: selectedSubmission.userName,
-                            userEmail: selectedSubmission.userEmail,
-                            projectName: selectedSubmission.projectName,
-                            milestoneName: selectedSubmission.milestoneName || `Milestone ${selectedSubmission.milestoneId}`,
-                            milestoneId: selectedSubmission.milestoneId,
-                            adminNote: adminNote
-                        })
-                    });
-                    const result = await response.json();
-                    console.log('📧 Rejection email result:', result);
-                } catch (emailError) {
-                    console.error('❌ Rejection email failed:', emailError);
-                }
-
-                alert("❌ Milestone rejected. User will be notified.");
-            }
-
-            // Close modal and refresh
-            setShowAdminReviewModal(false);
-            setSelectedSubmission(null);
-            setReviewAction(null);
-            setAdminNote("");
-
-            // Refresh pending submissions
-            await fetchPendingSubmissions();
-
-        } catch (error) {
-            console.error("Error processing review:", error);
-            alert("Failed to process review. Please try again.");
-        } finally {
-            setProcessing(false);
-        }
     };
 
     // ---- LOADING STATE ----

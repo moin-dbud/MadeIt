@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { auth, db } from "../firebase/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { useAuth } from "../context/AuthContext";
+import { getUserProfile, updateUserProfile } from "../services/user.service";
 import { useNavigate, useParams } from "react-router-dom";
 import {
     Github, Linkedin, Mail, Download, Calendar, Flame, Clock, TrendingUp,
@@ -21,7 +21,6 @@ import SharePortfolioModal from "../components/SharePortfolioModal";
 import ContactCandidateModal from "../components/ContactCandidateModal";
 import { useSEO, getPortfolioSEO, trackPortfolioView } from "../utils/seo";
 import { debugListAllUsernames } from "../utils/debug";
-import { useAuth } from "../context/AuthContext";
 import { generatePortfolioPDF } from "../utils/pdfExport";
 import DetailedProjectCard from "../components/DetailedProjectCard";
 
@@ -141,12 +140,10 @@ export default function Portfolio() {
             }
 
             try {
-                const userRef = doc(db, "users", user.uid);
-                const userSnap = await getDoc(userRef);
+                const userId = user.id || user.uid;
+                const data = await getUserProfile(userId);
 
-                if (userSnap.exists()) {
-                    const data = userSnap.data();
-
+                if (data) {
                     if (!data.onboarding?.profileCompleted) {
                         navigate("/profile-setup");
                         return;

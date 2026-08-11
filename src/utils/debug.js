@@ -1,43 +1,49 @@
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../firebase/firebase';
+import { supabase } from '../supabase/supabase';
+import { mapUserRowToData } from '../services/user.service';
 
 /**
- * Debug utility to check all usernames in Firestore
- * Run this in browser console to see all available usernames
+ * Debug utility to check all usernames in Supabase
  */
 export const debugListAllUsernames = async () => {
     try {
-        const usersRef = collection(db, 'users');
-        const snapshot = await getDocs(usersRef);
+        const { data: users, error } = await supabase
+            .from('users')
+            .select('*');
 
-        console.log('📋 All users in Firestore:');
-        console.log('Total users:', snapshot.size);
+        if (error) {
+            console.error('Error listing users from Supabase:', error);
+            return [];
+        }
 
-        snapshot.forEach((doc) => {
-            const data = doc.data();
+        console.log('📋 All users in Supabase:');
+        console.log('Total users:', users.length);
+
+        const mappedUsers = users.map(row => {
+            const data = mapUserRowToData(row);
             const username = data.profile?.username;
             const name = data.name || data.profile?.fullName;
 
             console.log({
-                uid: doc.id,
+                uid: data.uid,
                 name: name,
                 username: username,
                 hasUsername: !!username
             });
+
+            return {
+                uid: data.uid,
+                username,
+                name
+            };
         });
 
-        return snapshot.docs.map(doc => ({
-            uid: doc.id,
-            username: doc.data().profile?.username,
-            name: doc.data().name
-        }));
+        return mappedUsers;
     } catch (error) {
         console.error('Error listing users:', error);
         return [];
     }
 };
 
-// Make it available globally for debugging
 if (typeof window !== 'undefined') {
     window.debugListAllUsernames = debugListAllUsernames;
 }

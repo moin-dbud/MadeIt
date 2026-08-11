@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { auth, db } from "../firebase/firebase";
-import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { useAuth } from "../context/AuthContext";
+import { getUserProfile, updateUserProfile } from "../services/user.service";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowRight, BookOpen, CheckCircle2, X, Clock, Award, Github, Info, AlertCircle, ChevronDown, ChevronUp, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,10 +10,9 @@ import SubmissionModal from "../components/SubmissionModal";
 import LoadingButton from "../components/LoadingButton";
 import { PageLoader, MilestoneCardSkeleton } from "../components/SkeletonLoaders";
 import { EMAIL_CONFIG } from '../config/email';
-
 export default function ProjectPage() {
     const { projectId } = useParams();
-    const user = auth.currentUser;
+    const { user } = useAuth();
     const navigate = useNavigate();
 
     const [userData, setUserData] = useState(null);
@@ -40,7 +39,7 @@ export default function ProjectPage() {
     const [showMilestoneSubmission, setShowMilestoneSubmission] = useState(false);
     const [selectedMilestone, setSelectedMilestone] = useState(null);
 
-    // Task submission state (old - can be removed later)
+    // Task submission state
     const [showSubmissionModal, setShowSubmissionModal] = useState(false);
     const [selectedTask, setSelectedTask] = useState(null);
     const [submissionData, setSubmissionData] = useState({
@@ -100,12 +99,10 @@ export default function ProjectPage() {
             }
 
             try {
-                const userRef = doc(db, "users", user.uid);
-                const userSnap = await getDoc(userRef);
+                const userId = user.id || user.uid;
+                const data = await getUserProfile(userId);
 
-                if (userSnap.exists()) {
-                    const data = userSnap.data();
-
+                if (data) {
                     if (!data.onboarding?.profileCompleted) {
                         navigate("/profile-setup");
                         return;
@@ -125,12 +122,10 @@ export default function ProjectPage() {
                         setGithubRepo(data.activeProject.githubRepo);
                     }
 
-                    // Load completed tasks
                     if (data.activeProject?.completedTasks) {
                         setCompletedTasks(data.activeProject.completedTasks);
                     }
 
-                    // Load completed milestones
                     if (data.activeProject?.completedMilestones) {
                         setCompletedMilestones(data.activeProject.completedMilestones);
                     }
@@ -157,41 +152,23 @@ export default function ProjectPage() {
 
         setAccepting(true);
         try {
-            const userRef = doc(db, "users", user.uid);
-            await updateDoc(userRef, {
-                "activeProject.instructionsCompleted": true,
-                "activeProject.githubRepo": githubRepo.trim(),
-                "activeProject.completedTasks": [],
-            });
+            const userId = user.id || user.uid;
+            const updatedActiveProject = {
+                ...(userData?.activeProject || {}),
+                instructionsCompleted: true,
+                githubRepo: githubRepo.trim(),
+                completedTasks: [],
+            };
 
-            const project = getProjectById(projectId);
-            const milestones = getMilestones(projectId);
-            try {
-                await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-project-confirmation-email`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        userName: userData?.profile?.fullName || 'there',
-                        userEmail: user.email,
-                        projectName: project?.name || 'Your Project',
-                        milestoneCount: milestones?.length || 0,
-                        githubRepo: githubRepo.trim()
-                    })
-                });
-            } catch (error) {
-                console.error('Confirmation email failed:', error);
-            }
+            await updateUserProfile(userId, {
+                activeProject: updatedActiveProject
+            });
 
             setShowInstructions(false);
 
             setUserData((prev) => ({
                 ...prev,
-                activeProject: {
-                    ...prev.activeProject,
-                    instructionsCompleted: true,
-                    githubRepo: githubRepo.trim(),
-                    completedTasks: [],
-                },
+                activeProject: updatedActiveProject,
             }));
         } catch (error) {
             console.error("Error completing instructions:", error);
@@ -209,23 +186,26 @@ export default function ProjectPage() {
         }));
     };
 
-
-    // ---- HANDLE TASK COMPLETION (NO PROOF REQUIRED) ----
+    // ---- HANDLE TASK COMPLETION ----
     const handleTaskComplete = async (milestoneId, taskId) => {
         const taskKey = `${milestoneId}-${taskId}`;
 
-        // Check if already completed
         if (completedTasks.includes(taskKey)) {
             return;
         }
 
         try {
-            const userRef = doc(db, "users", user.uid);
-            await updateDoc(userRef, {
-                'activeProject.completedTasks': arrayUnion(taskKey)
+            const userId = user.id || user.uid;
+            const updatedCompletedTasks = [...completedTasks, taskKey];
+
+            await updateUserProfile(userId, {
+                activeProject: {
+                    ...(userData?.activeProject || {}),
+                    completedTasks: updatedCompletedTasks
+                }
             });
 
-            setCompletedTasks(prev => [...prev, taskKey]);
+            setCompletedTasks(updatedCompletedTasks);
         } catch (error) {
             console.error("Error completing task:", error);
             alert("Failed to mark task as complete. Please try again.");
@@ -234,79 +214,32 @@ export default function ProjectPage() {
 
     // ---- HANDLE MILESTONE SUBMISSION ----
     const handleMilestoneSubmit = async (milestoneId, proofData) => {
-        console.log("=== MILESTONE SUBMISSION START ===");
-        console.log("Milestone ID:", milestoneId);
-        console.log("Proof Data:", proofData);
-        console.log("User UID:", user?.uid);
-        console.log("Project ID:", projectId);
-
         try {
-            const userRef = doc(db, "users", user.uid);
-            console.log("User Ref Path:", userRef.path);
+            const userId = user.id || user.uid;
+            const existingSubmissions = userData?.activeProject?.submissions || {};
 
-            // DO NOT auto-complete milestone - it needs admin verification
-            // const newCompletedMilestones = [...completedMilestones, milestoneId];
-            // const progress = calculateProgress(projectId, newCompletedMilestones);
-
-            const updateData = {
-                // DO NOT add to completedMilestones yet - admin must verify first
-                [`activeProject.submissions.${milestoneId}`]: {
+            const updatedSubmissions = {
+                ...existingSubmissions,
+                [milestoneId]: {
                     submittedAt: new Date().toISOString(),
                     proofs: proofData,
-                    verificationStatus: "under_review" // Admin must verify before milestone is complete
+                    verificationStatus: "under_review"
                 }
-                // DO NOT update progress yet - wait for admin verification
             };
 
-            console.log("Update Data:", updateData);
+            const updatedActiveProject = {
+                ...(userData?.activeProject || {}),
+                submissions: updatedSubmissions
+            };
 
-            await updateDoc(userRef, updateData);
-            console.log("✅ Firestore update successful!");
+            await updateUserProfile(userId, {
+                activeProject: updatedActiveProject
+            });
 
-            // Refresh userData to show verification badge immediately
-            const updatedUserSnap = await getDoc(userRef);
-            if (updatedUserSnap.exists()) {
-                setUserData(updatedUserSnap.data());
+            const updatedUser = await getUserProfile(userId);
+            if (updatedUser) {
+                setUserData(updatedUser);
             }
-
-            // Send email notification to admin
-            try {
-                const milestoneConfig = getMilestones(userData.activeProject.id).find(m => m.milestoneId === selectedMilestone.milestoneId);
-                const emailData = {
-                    userName: userData.profile?.fullName || userData.name || 'User',
-                    userEmail: userData.email || user.email,
-                    projectName: userData.activeProject.name,
-                    milestoneName: milestoneConfig?.title || selectedMilestone.title,
-                    milestoneId: selectedMilestone.milestoneId,
-                    adminEmail: 'moinsheikh1303@gmail.com' // Correct admin email
-                };
-
-                console.log('📧 Sending admin notification email...', emailData);
-
-                const response = await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-milestone-submitted-email`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(emailData)
-                });
-
-                const result = await response.json();
-                console.log('📧 Email API response:', result);
-
-                if (result.success) {
-                    console.log('✅ Admin notification email sent successfully');
-                } else {
-                    console.error('❌ Email failed:', result.error);
-                }
-            } catch (emailError) {
-                console.error('❌ Email notification failed:', emailError);
-                console.error('Error details:', emailError.message);
-            }
-
-            // DO NOT update completedMilestones state - milestone is only submitted, not completed
-            setShowMilestoneSubmission(false);
-            setSelectedMilestone(null);
-
-            alert("Milestone submitted! ✅\nYour submission is now under review by an admin.");
         } catch (error) {
             console.error("❌ ERROR submitting milestone:");
             console.error("Error name:", error.name);

@@ -1,8 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { auth } from "../firebase/firebase";
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "../firebase/firebase";
+import { useAuth } from "../context/AuthContext";
+import { updateUserProfile as saveUserProfile } from "../services/user.service";
 import { useNavigate } from "react-router-dom";
 import { GraduationCap, Award, Rocket, ArrowRight } from "lucide-react";
 import { Github, Linkedin, Twitter, Check, PartyPopper, X } from "lucide-react";
@@ -11,7 +10,7 @@ import { isUsernameAvailable } from "../utils/publicPortfolio";
 import { EMAIL_CONFIG } from '../config/email';
 
 export default function ProfileSetup() {
-  const user = auth.currentUser;
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -99,10 +98,10 @@ export default function ProfileSetup() {
   const updateFirestore = async (payload) => {
     if (!user) return;
     try {
-      const ref = doc(db, "users", user.uid);
-      await setDoc(ref, payload, { merge: true });
+      const userId = user.id || user.uid;
+      await saveUserProfile(userId, payload);
     } catch (error) {
-      console.error("Error updating Firestore:", error);
+      console.error("Error updating profile in Supabase:", error);
       throw error;
     }
   };

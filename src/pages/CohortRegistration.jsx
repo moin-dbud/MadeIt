@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Users, Send, CheckCircle } from 'lucide-react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase/firebase';
+import { supabase } from '../supabase/supabase';
 import Footer from '../components/Footer';
 
 const CohortRegistration = () => {
@@ -141,21 +140,25 @@ const CohortRegistration = () => {
         setIsSubmitting(true);
 
         try {
-            // Save to Firestore
-            const docRef = await addDoc(collection(db, 'cohortApplications'), {
-                name: formData.name.trim(),
-                email: formData.email.trim().toLowerCase(),
-                phone: formData.phone.trim(),
-                status: formData.status,
-                techInterest: formData.techInterest,
-                githubUrl: formData.githubUrl.trim(),
-                motivation: formData.motivation.trim(),
-                commitment: formData.commitment,
-                cohortStatus: 'pending',
-                createdAt: serverTimestamp()
-            });
+            // Save to Supabase
+            const { data: inserted, error: insertErr } = await supabase
+                .from('cohort_applications')
+                .insert({
+                    name: formData.name.trim(),
+                    email: formData.email.trim().toLowerCase(),
+                    phone: formData.phone.trim(),
+                    status: formData.status,
+                    tech_interest: Array.isArray(formData.techInterest) ? formData.techInterest.join(', ') : formData.techInterest,
+                    created_at: new Date().toISOString()
+                })
+                .select('id')
+                .single();
 
-            console.log('Application saved to Firestore with ID:', docRef.id);
+            if (insertErr) {
+                console.error('Error inserting cohort application:', insertErr);
+            } else {
+                console.log('Application saved to Supabase with ID:', inserted?.id);
+            }
 
             // Try to send emails via API (this may fail in local dev)
             try {

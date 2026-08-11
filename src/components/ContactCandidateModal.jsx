@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { X, Mail, Building2, User, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase/firebase';
+import { supabase } from '../supabase/supabase';
 
 /**
- * ContactCandidateModal
+ * ContactCandidateModal (Supabase)
  * 
  * Modal for recruiters to contact portfolio owners
  * Captures lead information and sends to portfolio owner
@@ -57,18 +56,25 @@ export default function ContactCandidateModal({ isOpen, onClose, portfolioOwnerI
         setSubmitting(true);
 
         try {
-            // Save inquiry to Firestore
-            await addDoc(collection(db, 'recruiterInquiries'), {
-                portfolioOwnerId,
-                recruiterName: formData.recruiterName.trim(),
-                recruiterEmail: formData.recruiterEmail.trim(),
-                company: formData.company.trim() || null,
-                message: formData.message.trim(),
-                isProfessionalOpportunity: formData.isProfessionalOpportunity,
-                timestamp: serverTimestamp(),
-                status: 'unread',
-                replied: false
-            });
+            // Save inquiry to Supabase recruiter_inquiries table
+            const { error } = await supabase
+                .from('recruiter_inquiries')
+                .insert({
+                    portfolio_owner_id: portfolioOwnerId,
+                    recruiter_name: formData.recruiterName.trim(),
+                    recruiter_email: formData.recruiterEmail.trim(),
+                    company: formData.company.trim() || null,
+                    message: formData.message.trim(),
+                    is_professional_opportunity: formData.isProfessionalOpportunity,
+                    status: 'unread',
+                    replied: false,
+                    created_at: new Date().toISOString()
+                });
+
+            if (error) {
+                console.error('Error inserting recruiter inquiry:', error);
+                throw error;
+            }
 
             setSubmitted(true);
 

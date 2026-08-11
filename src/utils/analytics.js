@@ -1,45 +1,33 @@
-import { db } from '../firebase/firebase';
-import { doc, updateDoc, increment, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { supabase } from '../supabase/supabase';
 
 /**
- * Analytics Tracking Utilities
+ * Analytics Tracking Utilities (Supabase)
  * 
  * Privacy-first analytics for portfolio performance
- * - No personal data stored
- * - Anonymous tracking only
- * - Owner-only visibility
  */
 
-// ============================================================================
-// PORTFOLIO VIEW TRACKING
-// ============================================================================
-
-/**
- * Track a portfolio view
- * Called when someone visits a public portfolio
- * 
- * @param {string} userId - Portfolio owner's user ID
- */
 export const trackPortfolioView = async (userId) => {
     if (!userId) return;
 
     try {
         const today = new Date().toISOString().split('T')[0];
-        const analyticsRef = doc(db, 'users', userId, 'analytics', 'portfolio');
 
-        // Check if analytics document exists
-        const analyticsDoc = await getDoc(analyticsRef);
+        const { data: existing } = await supabase
+            .from('analytics')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('type', 'portfolio')
+            .maybeSingle();
 
-        if (!analyticsDoc.exists()) {
-            // Create initial analytics document
-            await setDoc(analyticsRef, {
+        if (!existing) {
+            const initialAnalytics = {
+                user_id: userId,
+                type: 'portfolio',
                 views: {
                     total: 1,
                     last7Days: 1,
                     last30Days: 1,
-                    byDate: {
-                        [today]: 1
-                    }
+                    byDate: { [today]: 1 }
                 },
                 interactions: {
                     githubClicks: { total: 0, last7Days: 0, last30Days: 0 },
@@ -49,201 +37,224 @@ export const trackPortfolioView = async (userId) => {
                 sessions: {
                     totalSessions: 1,
                     avgDuration: 0,
-                    lastSession: serverTimestamp()
+                    lastSession: new Date().toISOString()
                 },
                 projects: {},
-                lastUpdated: serverTimestamp()
-            });
+                last_updated: new Date().toISOString()
+            };
+
+            await supabase.from('analytics').insert(initialAnalytics);
         } else {
-            // Update existing analytics
-            await updateDoc(analyticsRef, {
-                'views.total': increment(1),
-                'views.last7Days': increment(1),
-                'views.last30Days': increment(1),
-                [`views.byDate.${today}`]: increment(1),
-                'sessions.totalSessions': increment(1),
-                'sessions.lastSession': serverTimestamp(),
-                lastUpdated: serverTimestamp()
-            });
+            const views = existing.views || {};
+            const byDate = views.byDate || {};
+            const sessions = existing.sessions || {};
+
+            const updatedViews = {
+                ...views,
+                total: (views.total || 0) + 1,
+                last7Days: (views.last7Days || 0) + 1,
+                last30Days: (views.last30Days || 0) + 1,
+                byDate: {
+                    ...byDate,
+                    [today]: (byDate[today] || 0) + 1
+                }
+            };
+
+            const updatedSessions = {
+                ...sessions,
+                totalSessions: (sessions.totalSessions || 0) + 1,
+                lastSession: new Date().toISOString()
+            };
+
+            await supabase
+                .from('analytics')
+                .update({
+                    views: updatedViews,
+                    sessions: updatedSessions,
+                    last_updated: new Date().toISOString()
+                })
+                .eq('user_id', userId)
+                .eq('type', 'portfolio');
         }
     } catch (error) {
         console.error('Error tracking portfolio view:', error);
-        // Fail silently - don't break user experience
     }
 };
 
-// ============================================================================
-// INTERACTION TRACKING
-// ============================================================================
-
-/**
- * Track an interaction (GitHub click, live demo click, etc.)
- * 
- * @param {string} userId - Portfolio owner's user ID
- * @param {string} type - Interaction type: 'githubClicks' | 'liveDemoClicks' | 'linkedinClicks'
- * @param {string} projectId - Optional project ID for project-specific tracking
- */
 export const trackInteraction = async (userId, type, projectId = null) => {
     if (!userId || !type) return;
 
-    console.log('📊 Tracking interaction:', { userId, type, projectId });
-
     try {
-        const analyticsRef = doc(db, 'users', userId, 'analytics', 'portfolio');
+        const { data: existing } = await supabase
+            .from('analytics')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('type', 'portfolio')
+            .maybeSingle();
 
-        const updates = {
-            [`interactions.${type}.total`]: increment(1),
-            [`interactions.${type}.last7Days`]: increment(1),
-            [`interactions.${type}.last30Days`]: increment(1),
-            lastUpdated: serverTimestamp()
+        if (!existing) return;
+
+        const interactions = existing.interactions || {};
+        const targetType = interactions[type] || { total: 0, last7Days: 0, last30Days: 0 };
+        const projects = existing.projects || {};
+
+        const updatedInteractions = {
+            ...interactions,
+            [type]: {
+                ...targetType,
+                total: (targetType.total || 0) + 1,
+                last7Days: (targetType.last7Days || 0) + 1,
+                last30Days: (targetType.last30Days || 0) + 1
+            }
         };
 
-        // Track project-specific clicks
         if (projectId) {
-            updates[`projects.${projectId}.clicks`] = increment(1);
+            const proj = projects[projectId] || { views: 0, clicks: 0 };
+            projects[projectId] = {
+                ...proj,
+                clicks: (proj.clicks || 0) + 1
+            };
         }
 
-        await updateDoc(analyticsRef, updates);
-        console.log('✅ Interaction tracked successfully');
+        await supabase
+            .from('analytics')
+            .update({
+                interactions: updatedInteractions,
+                projects,
+                last_updated: new Date().toISOString()
+            })
+            .eq('user_id', userId)
+            .eq('type', 'portfolio');
     } catch (error) {
         console.error('Error tracking interaction:', error);
-        // Fail silently
     }
 };
 
-/**
- * Track project view
- * 
- * @param {string} userId - Portfolio owner's user ID
- * @param {string} projectId - Project ID
- */
 export const trackProjectView = async (userId, projectId) => {
     if (!userId || !projectId) return;
 
     try {
-        const analyticsRef = doc(db, 'users', userId, 'analytics', 'portfolio');
+        const { data: existing } = await supabase
+            .from('analytics')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('type', 'portfolio')
+            .maybeSingle();
 
-        await updateDoc(analyticsRef, {
-            [`projects.${projectId}.views`]: increment(1),
-            lastUpdated: serverTimestamp()
-        });
+        if (!existing) return;
+
+        const projects = existing.projects || {};
+        const proj = projects[projectId] || { views: 0, clicks: 0 };
+        projects[projectId] = {
+            ...proj,
+            views: (proj.views || 0) + 1
+        };
+
+        await supabase
+            .from('analytics')
+            .update({
+                projects,
+                last_updated: new Date().toISOString()
+            })
+            .eq('user_id', userId)
+            .eq('type', 'portfolio');
     } catch (error) {
         console.error('Error tracking project view:', error);
     }
 };
 
-// ============================================================================
-// SESSION TRACKING
-// ============================================================================
-
-/**
- * Track session duration
- * Called when user leaves the portfolio page
- * 
- * @param {string} userId - Portfolio owner's user ID
- * @param {number} duration - Session duration in seconds
- */
 export const trackSessionDuration = async (userId, duration) => {
     if (!userId || !duration) return;
 
     try {
-        const analyticsRef = doc(db, 'users', userId, 'analytics', 'portfolio');
-        const analyticsDoc = await getDoc(analyticsRef);
+        const { data: existing } = await supabase
+            .from('analytics')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('type', 'portfolio')
+            .maybeSingle();
 
-        if (analyticsDoc.exists()) {
-            const data = analyticsDoc.data();
-            const currentAvg = data.sessions?.avgDuration || 0;
-            const totalSessions = data.sessions?.totalSessions || 1;
+        if (!existing) return;
 
-            // Calculate new average
-            const newAvg = Math.round(((currentAvg * (totalSessions - 1)) + duration) / totalSessions);
+        const sessions = existing.sessions || {};
+        const currentAvg = sessions.avgDuration || 0;
+        const totalSessions = sessions.totalSessions || 1;
+        const newAvg = Math.round(((currentAvg * (totalSessions - 1)) + duration) / totalSessions);
 
-            await updateDoc(analyticsRef, {
-                'sessions.avgDuration': newAvg,
-                lastUpdated: serverTimestamp()
-            });
-        }
+        await supabase
+            .from('analytics')
+            .update({
+                sessions: {
+                    ...sessions,
+                    avgDuration: newAvg
+                },
+                last_updated: new Date().toISOString()
+            })
+            .eq('user_id', userId)
+            .eq('type', 'portfolio');
     } catch (error) {
         console.error('Error tracking session duration:', error);
     }
 };
 
-// ============================================================================
-// ANALYTICS RETRIEVAL
-// ============================================================================
-
-/**
- * Get portfolio analytics for owner
- * 
- * @param {string} userId - User ID
- * @returns {Promise<Object>} Analytics data
- */
 export const getPortfolioAnalytics = async (userId) => {
     if (!userId) return null;
 
     try {
-        const analyticsRef = doc(db, 'users', userId, 'analytics', 'portfolio');
-        const analyticsDoc = await getDoc(analyticsRef);
+        const { data, error } = await supabase
+            .from('analytics')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('type', 'portfolio')
+            .maybeSingle();
 
-        if (analyticsDoc.exists()) {
-            return analyticsDoc.data();
+        if (error && error.code !== 'PGRST116') {
+            console.error('Error getting portfolio analytics:', error);
         }
 
-        // Create initial analytics document if it doesn't exist
+        if (data) {
+            return {
+                views: data.views || {},
+                interactions: data.interactions || {},
+                sessions: data.sessions || {},
+                projects: data.projects || {}
+            };
+        }
+
         const initialAnalytics = {
-            views: {
-                total: 0,
-                last7Days: 0,
-                last30Days: 0,
-                byDate: {}
-            },
+            views: { total: 0, last7Days: 0, last30Days: 0, byDate: {} },
             interactions: {
                 githubClicks: { total: 0, last7Days: 0, last30Days: 0 },
                 liveDemoClicks: { total: 0, last7Days: 0, last30Days: 0 },
                 linkedinClicks: { total: 0, last7Days: 0, last30Days: 0 }
             },
-            sessions: {
-                totalSessions: 0,
-                avgDuration: 0,
-                lastSession: null
-            },
-            projects: {},
-            lastUpdated: serverTimestamp()
+            sessions: { totalSessions: 0, avgDuration: 0, lastSession: null },
+            projects: {}
         };
 
-        await setDoc(analyticsRef, initialAnalytics);
+        await supabase.from('analytics').insert({
+            user_id: userId,
+            type: 'portfolio',
+            ...initialAnalytics,
+            last_updated: new Date().toISOString()
+        });
+
         return initialAnalytics;
     } catch (error) {
         console.error('Error getting portfolio analytics:', error);
-        // Return empty analytics instead of null to show the component
         return {
-            views: {
-                total: 0,
-                last7Days: 0,
-                last30Days: 0,
-                byDate: {}
-            },
+            views: { total: 0, last7Days: 0, last30Days: 0, byDate: {} },
             interactions: {
                 githubClicks: { total: 0, last7Days: 0, last30Days: 0 },
                 liveDemoClicks: { total: 0, last7Days: 0, last30Days: 0 },
                 linkedinClicks: { total: 0, last7Days: 0, last30Days: 0 }
             },
-            sessions: {
-                totalSessions: 0,
-                avgDuration: 0,
-                lastSession: null
-            },
+            sessions: { totalSessions: 0, avgDuration: 0, lastSession: null },
             projects: {}
         };
     }
 };
 
-/**
- * Calculate most viewed project
- * 
- * @param {Object} analytics - Analytics data
- * @returns {Object} Most viewed project info
- */
 export const getMostViewedProject = (analytics) => {
     if (!analytics?.projects) return null;
 
@@ -259,84 +270,60 @@ export const getMostViewedProject = (analytics) => {
     return mostViewed.views > 0 ? mostViewed : null;
 };
 
-// ============================================================================
-// PERIODIC CLEANUP
-// ============================================================================
-
-/**
- * Reset 7-day and 30-day counters (run daily via Cloud Function)
- * 
- * @param {string} userId - User ID
- */
 export const resetPeriodCounters = async (userId) => {
     try {
-        const analyticsRef = doc(db, 'users', userId, 'analytics', 'portfolio');
-        const analyticsDoc = await getDoc(analyticsRef);
+        const { data: existing } = await supabase
+            .from('analytics')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('type', 'portfolio')
+            .maybeSingle();
 
-        if (!analyticsDoc.exists()) return;
+        if (!existing || !existing.views?.byDate) return;
 
-        const data = analyticsDoc.data();
         const today = new Date();
         const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
         const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-        // Recalculate 7-day and 30-day views from byDate
         let last7Days = 0;
         let last30Days = 0;
 
-        if (data.views?.byDate) {
-            Object.entries(data.views.byDate).forEach(([date, count]) => {
-                const dateObj = new Date(date);
-                if (dateObj >= sevenDaysAgo) last7Days += count;
-                if (dateObj >= thirtyDaysAgo) last30Days += count;
-            });
-        }
-
-        // Update counters
-        await updateDoc(analyticsRef, {
-            'views.last7Days': last7Days,
-            'views.last30Days': last30Days,
-            lastUpdated: serverTimestamp()
+        Object.entries(existing.views.byDate).forEach(([date, count]) => {
+            const dateObj = new Date(date);
+            if (dateObj >= sevenDaysAgo) last7Days += count;
+            if (dateObj >= thirtyDaysAgo) last30Days += count;
         });
+
+        await supabase
+            .from('analytics')
+            .update({
+                views: {
+                    ...existing.views,
+                    last7Days,
+                    last30Days
+                },
+                last_updated: new Date().toISOString()
+            })
+            .eq('user_id', userId)
+            .eq('type', 'portfolio');
     } catch (error) {
         console.error('Error resetting period counters:', error);
     }
 };
 
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-/**
- * Format duration in human-readable format
- * 
- * @param {number} seconds - Duration in seconds
- * @returns {string} Formatted duration
- */
 export const formatDuration = (seconds) => {
     if (!seconds) return '0s';
-
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-
     if (minutes === 0) return `${remainingSeconds}s`;
     if (remainingSeconds === 0) return `${minutes}m`;
     return `${minutes}m ${remainingSeconds}s`;
 };
 
-/**
- * Calculate trend (increase/decrease from previous period)
- * 
- * @param {number} current - Current period value
- * @param {number} previous - Previous period value
- * @returns {Object} Trend info
- */
 export const calculateTrend = (current, previous) => {
     if (!previous) return { change: current, percentage: 100, direction: 'up' };
-
     const change = current - previous;
     const percentage = Math.round((change / previous) * 100);
     const direction = change > 0 ? 'up' : change < 0 ? 'down' : 'neutral';
-
     return { change, percentage, direction };
 };

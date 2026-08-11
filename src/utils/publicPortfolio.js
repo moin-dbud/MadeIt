@@ -1,5 +1,5 @@
-import { db } from "../firebase/firebase";
-import { collection, query, where, getDocs, limit } from "firebase/firestore";
+import { supabase } from "../supabase/supabase";
+import { mapUserRowToData } from "../services/user.service";
 
 /**
  * Fetch user data by username
@@ -13,36 +13,24 @@ export const getUserByUsername = async (username) => {
     }
 
     try {
-        // Query users collection for matching username in profile.username field
-        const usersRef = collection(db, "users");
-        const q = query(
-            usersRef,
-            where("profile.username", "==", username.toLowerCase()),
-            limit(1)
-        );
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .filter('profile->>username', 'eq', username.toLowerCase())
+            .maybeSingle();
 
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
+        if (error) {
+            console.error("Error fetching user by username from Supabase:", error);
             return null;
         }
 
-        const userDoc = querySnapshot.docs[0];
-        return {
-            uid: userDoc.id,
-            ...userDoc.data()
-        };
-    } catch (error) {
-        console.error("Error fetching user by username:", error);
-
-        // Check if it's an index error
-        if (error.code === 'failed-precondition' || error.message?.includes('index')) {
-            console.error("🔥 FIRESTORE INDEX REQUIRED!");
-            console.error("Please create an index for this query.");
-            console.error("The error message should contain a link to create the index.");
-            console.error("Error details:", error.message);
+        if (!data) {
+            return null;
         }
 
+        return mapUserRowToData(data);
+    } catch (error) {
+        console.error("Error fetching user by username:", error);
         throw error;
     }
 };
@@ -113,34 +101,26 @@ export const filterPublicUserData = (userData) => {
         return null;
     }
 
-    // Create a copy to avoid mutating original
     const publicData = { ...userData };
 
-    // Remove sensitive fields
     delete publicData.email;
     delete publicData.phone;
     delete publicData.onboarding;
 
-    // Filter active project to show only completed data
     if (publicData.activeProject) {
         const activeProject = { ...publicData.activeProject };
 
-        // Keep only completed milestones
         activeProject.completedMilestones = activeProject.completedMilestones || [];
 
-        // Remove in-progress data
         delete activeProject.completedTasks;
         delete activeProject.taskCompletionHistory;
-        // Keep githubRepo visible for recruiters to see project code
 
         publicData.activeProject = activeProject;
     }
 
-    // Filter portfolio settings - hide private settings
     if (publicData.portfolio?.settings) {
         const settings = { ...publicData.portfolio.settings };
 
-        // Force certain settings for public view
         settings.showEmail = false;
         settings.requireLoginForDetails = false;
 
