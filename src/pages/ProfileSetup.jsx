@@ -153,14 +153,14 @@ export default function ProfileSetup() {
       if (currentStep === 1 && step > 1) {
         await updateFirestore({
           profile: formData.profile,
-          "onboarding.stepCompleted": 1,
+          onboarding: { stepCompleted: 1 },
         });
       }
 
       if (currentStep === 2 && step > 2) {
         await updateFirestore({
           education: formData.education,
-          "onboarding.stepCompleted": 2,
+          onboarding: { stepCompleted: 2 },
         });
       }
 

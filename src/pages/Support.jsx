@@ -214,13 +214,13 @@ export default function Support() {
         try {
             // Prepare ticket data
             const ticketData = {
-                userId: user.uid,
+                userId: user.id || user.uid,
                 userEmail: user.email || userData?.profile?.email || "",
                 userName: userData?.profile?.fullName || user.displayName || "User",
                 issueType: formData.issueType,
                 status: "open",
-                createdAt: serverTimestamp(),
-                lastUpdatedAt: serverTimestamp()
+                createdAt: new Date().toISOString(),
+                lastUpdatedAt: new Date().toISOString()
             };
 
             // Add issue-specific fields
@@ -299,7 +299,7 @@ export default function Support() {
                         type: 'supportTicket',
                         data: {
                             ...ticketData,
-                            ticketId: docRef.id,
+                            ticketId: generatedTicketId,
                             name: ticketData.userName
                         }
                     })

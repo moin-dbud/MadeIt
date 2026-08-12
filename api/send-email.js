@@ -1,6 +1,6 @@
-const nodemailer = require('nodemailer');
+import nodemailer from 'nodemailer';
 
-module.exports = async (req, res) => {
+export default async (req, res) => {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -21,8 +21,11 @@ module.exports = async (req, res) => {
             return res.status(400).json({ error: 'Missing type or data' });
         }
 
+        // Environment variable safe access
+        const env = typeof process !== 'undefined' ? process.env : {};
+
         // Validate environment variables
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        if (!env.EMAIL_USER || !env.EMAIL_PASS) {
             console.error('Missing EMAIL_USER or EMAIL_PASS environment variables');
             return res.status(500).json({ error: 'Email configuration missing' });
         }
@@ -31,17 +34,21 @@ module.exports = async (req, res) => {
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
+                user: env.EMAIL_USER,
+                pass: env.EMAIL_PASS,
             },
         });
+
+        // Recipient Resolution Helpers
+        const adminEmail = env.ADMIN_EMAIL || env.VITE_ADMIN_EMAIL || env.EMAIL_USER || env.VITE_EMAIL || 'moinsheikh1303@gmail.com';
+        const getUserEmail = (d) => d?.email || d?.userEmail || d?.to || adminEmail;
 
         // Email templates
         const getEmailContent = (emailType, emailData) => {
             switch (emailType) {
                 case 'welcome':
                     return {
-                        to: emailData.email,
+                        to: getUserEmail(emailData),
                         subject: '🎉 Welcome to MadeIt - Let\'s Build Something Amazing!',
                         html: `
               <!DOCTYPE html>
@@ -94,7 +101,7 @@ module.exports = async (req, res) => {
                     </div>
                     
                     <center>
-                      <a href="${process.env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/projects" class="cta-button">
+                      <a href="${env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/projects" class="cta-button">
                         Start Building Now →
                       </a>
                     </center>
@@ -176,7 +183,7 @@ module.exports = async (req, res) => {
                     </div>
                     
                     <center>
-                      <a href="${process.env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/dashboard" class="cta-button">
+                      <a href="${env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/dashboard" class="cta-button">
                         View Your Project →
                       </a>
                     </center>
@@ -267,7 +274,7 @@ module.exports = async (req, res) => {
                     <p>Build real projects. Prove your work.</p>
                     <p style="margin-top: 16px;">
                       <a href="mailto:moinsheikh1303@gmail.com" style="color: #4A7BFF; text-decoration: none;">Contact Us</a> · 
-                      <a href="${process.env.VITE_APP_URL || 'https://madeit-app.vercel.app'}" style="color: #4A7BFF; text-decoration: none;">Visit Website</a>
+                      <a href="${env.VITE_APP_URL || 'https://madeit-app.vercel.app'}" style="color: #4A7BFF; text-decoration: none;">Visit Website</a>
                     </p>
                   </div>
                 </div>
@@ -278,7 +285,7 @@ module.exports = async (req, res) => {
 
                 case 'cohortApplicationAdmin':
                     return {
-                        to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+                        to: env.ADMIN_EMAIL || env.EMAIL_USER || 'moinsheikh1303@gmail.com',
                         subject: '🆕 New MadeIt Cohort Application',
                         html: `
               <!DOCTYPE html>
@@ -439,7 +446,7 @@ module.exports = async (req, res) => {
                 // Support Ticket - Admin Notification
                 case 'supportTicketAdmin':
                     return {
-                        to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+                        to: env.ADMIN_EMAIL || env.EMAIL_USER || 'moinsheikh1303@gmail.com',
                         subject: `🎫 New Support Ticket: ${emailData.issueType}`,
                         html: `
               <!DOCTYPE html>
@@ -500,7 +507,7 @@ module.exports = async (req, res) => {
                 // Milestone Submit - Admin Notification
                 case 'milestoneSubmitAdmin':
                     return {
-                        to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+                        to: env.ADMIN_EMAIL || env.EMAIL_USER || 'moinsheikh1303@gmail.com',
                         subject: `📊 Milestone Submitted: ${emailData.milestoneName}`,
                         html: `
               <!DOCTYPE html>
@@ -546,7 +553,7 @@ module.exports = async (req, res) => {
                     </div>
                     
                     <center>
-                      <a href="${process.env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/admin" class="cta-button">
+                      <a href="${env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/admin" class="cta-button">
                         Review Submission →
                       </a>
                     </center>
@@ -605,7 +612,7 @@ module.exports = async (req, res) => {
                     </p>
                     
                     <center>
-                      <a href="${process.env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/dashboard" class="cta-button">
+                      <a href="${env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/dashboard" class="cta-button">
                         Continue Building →
                       </a>
                     </center>
@@ -671,7 +678,7 @@ module.exports = async (req, res) => {
                     </p>
                     
                     <center>
-                      <a href="${process.env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/projects/${emailData.projectId}" class="cta-button">
+                      <a href="${env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/projects/${emailData.projectId}" class="cta-button">
                         Revise & Resubmit →
                       </a>
                     </center>
@@ -737,7 +744,7 @@ module.exports = async (req, res) => {
                     </p>
                     
                     <center>
-                      <a href="${process.env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/projects/${emailData.projectId}" class="cta-button">
+                      <a href="${env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/projects/${emailData.projectId}" class="cta-button">
                         Review Milestone →
                       </a>
                     </center>
@@ -745,7 +752,7 @@ module.exports = async (req, res) => {
                   
                   <div class="footer">
                     <p><strong>MadeIt</strong></p>
-                    <p>Need help? <a href="${process.env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/support" style="color: #4A7BFF;">Contact Support</a></p>
+                    <p>Need help? <a href="${env.VITE_APP_URL || 'https://madeit-app.vercel.app'}/support" style="color: #4A7BFF;">Contact Support</a></p>
                   </div>
                 </div>
               </body>
@@ -766,11 +773,11 @@ module.exports = async (req, res) => {
 
             await Promise.all([
                 transporter.sendMail({
-                    from: `"MadeIt" <${process.env.EMAIL_USER}>`,
+                    from: `"MadeIt" <${env.EMAIL_USER}>`,
                     ...userEmail
                 }),
                 transporter.sendMail({
-                    from: `"MadeIt" <${process.env.EMAIL_USER}>`,
+                    from: `"MadeIt" <${env.EMAIL_USER}>`,
                     ...adminEmail
                 })
             ]);
@@ -803,11 +810,14 @@ module.exports = async (req, res) => {
             });
         }
 
-        // For other email types (to be added later)
+        // For other email types
         const emailContent = getEmailContent(type, data);
+        const recipient = emailContent.to || data.email || data.userEmail || adminEmail;
+
         await transporter.sendMail({
-            from: `"MadeIt" <${process.env.EMAIL_USER}>`,
-            ...emailContent
+            from: `"MadeIt" <${process.env.EMAIL_USER || 'moinsheikh1303@gmail.com'}>`,
+            ...emailContent,
+            to: recipient
         });
 
         return res.status(200).json({

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "../supabase/supabase";
-import { getUserProfile } from "../services/user.service";
+import { getUserProfile, updateUserProfile, mapUserRowToData, getAllPendingMilestoneSubmissions } from "../services/user.service";
+import { verifyMilestone, flagMilestone, rejectMilestone } from "../firebase/firestore";
 import { logoutUser } from "../firebase/logout";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Rocket, CheckCircle2, Calendar, ExternalLink, User, LogOut, X, HelpCircle, Shield, Clock, Eye, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
@@ -11,7 +12,7 @@ import { PageLoader } from "../components/SkeletonLoaders";
 import RecruiterMessages from "../components/RecruiterMessages";
 import { useAuth } from "../context/AuthContext";
 import { submitFeedback, dismissFeedbackPrompt } from "../utils/feedback";
-import { updateUserProfile, mapUserRowToData } from "../services/user.service";
+import { EMAIL_CONFIG } from "../config/email";
 
 export default function Dashboard() {
     const { user, isAdmin, loading: authLoading } = useAuth();
@@ -35,6 +36,26 @@ export default function Dashboard() {
 
     const dropdownRef = useRef(null);
     const avatarRef = useRef(null);
+
+    // ---- FETCH ADMIN PENDING SUBMISSIONS ----
+    const fetchAdminSubmissions = async () => {
+        if (!isAdmin) return;
+        setLoadingSubmissions(true);
+        try {
+            const submissions = await getAllPendingMilestoneSubmissions();
+            setPendingSubmissions(submissions);
+        } catch (error) {
+            console.error("Error fetching admin pending submissions:", error);
+        } finally {
+            setLoadingSubmissions(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isAdmin) {
+            fetchAdminSubmissions();
+        }
+    }, [isAdmin]);
 
     // ---- FETCH USER DATA ----
     useEffect(() => {
@@ -143,6 +164,101 @@ export default function Dashboard() {
             console.error("Error saving changes:", error);
         } finally {
             setSaving(false);
+        }
+    };
+
+    // ---- HANDLE ADMIN REVIEW DECISION ----
+    const handleReviewDecision = async () => {
+        if (!selectedSubmission || !reviewAction) return;
+
+        if ((reviewAction === 'flag' || reviewAction === 'reject') && !adminNote.trim()) {
+            alert(`Please provide a ${reviewAction === 'flag' ? 'flag note' : 'rejection reason'}.`);
+            return;
+        }
+
+        setProcessing(true);
+        try {
+            const adminId = user.id || user.uid;
+            const { userId, milestoneId, userName, userEmail, projectName } = selectedSubmission;
+
+            if (reviewAction === 'verify') {
+                await verifyMilestone(userId, milestoneId, adminId);
+                // Send email notification to user
+                try {
+                    await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-email`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: 'milestoneVerified',
+                            data: {
+                                email: userEmail,
+                                name: userName,
+                                projectName: projectName,
+                                milestoneName: milestoneId,
+                                milestoneId: milestoneId
+                            }
+                        })
+                    });
+                } catch (e) {
+                    console.warn("Verification email failed:", e);
+                }
+            } else if (reviewAction === 'flag') {
+                await flagMilestone(userId, milestoneId, adminId, adminNote.trim());
+                try {
+                    await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-email`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: 'milestoneFlagged',
+                            data: {
+                                email: userEmail,
+                                userName: userName,
+                                projectName: projectName,
+                                milestoneName: milestoneId,
+                                milestoneId: milestoneId,
+                                adminNote: adminNote.trim()
+                            }
+                        })
+                    });
+                } catch (e) {
+                    console.warn("Flagged email failed:", e);
+                }
+            } else if (reviewAction === 'reject') {
+                await rejectMilestone(userId, milestoneId, adminId, adminNote.trim());
+                try {
+                    await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-email`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: 'milestoneRejected',
+                            data: {
+                                email: userEmail,
+                                name: userName,
+                                projectName: projectName,
+                                milestoneName: milestoneId,
+                                milestoneId: milestoneId,
+                                feedback: adminNote.trim()
+                            }
+                        })
+                    });
+                } catch (e) {
+                    console.warn("Rejection email failed:", e);
+                }
+            }
+
+            // Refresh admin pending list
+            await fetchAdminSubmissions();
+
+            // Close modal & reset state
+            setShowAdminReviewModal(false);
+            setSelectedSubmission(null);
+            setReviewAction(null);
+            setAdminNote("");
+        } catch (error) {
+            console.error("Error submitting review decision:", error);
+            alert("Failed to submit review decision. Please try again.");
+        } finally {
+            setProcessing(false);
         }
     };
 

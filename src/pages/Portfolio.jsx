@@ -417,32 +417,34 @@ export default function Portfolio() {
 
         setSaving(true);
         try {
-            const userRef = doc(db, "users", user.uid);
+            const userId = user.id || user.uid;
 
-            const updateData = {
-                "portfolio.setupCompleted": true,
-                "portfolio.role": setupData.role.trim(),
-                "portfolio.statement": setupData.statement.trim(),
+            const updatedPortfolio = {
+                ...(userData?.portfolio || {}),
+                setupCompleted: true,
+                role: setupData.role.trim(),
+                statement: setupData.statement.trim(),
             };
 
             const hasBothSocials = userData?.socials?.github && userData?.socials?.linkedin;
-            if (!hasBothSocials) {
-                updateData["socials.github"] = setupData.github.trim();
-                updateData["socials.linkedin"] = setupData.linkedin.trim();
-            }
+            const updatedProfile = {
+                ...(userData?.profile || {}),
+                ...((!hasBothSocials) && {
+                    github: setupData.github.trim(),
+                    linkedin: setupData.linkedin.trim(),
+                })
+            };
 
-            await updateDoc(userRef, updateData);
+            await updateUserProfile(userId, {
+                portfolio: updatedPortfolio,
+                profile: updatedProfile
+            });
 
             setUserData(prev => ({
                 ...prev,
-                portfolio: {
-                    ...prev.portfolio,
-                    setupCompleted: true,
-                    role: setupData.role.trim(),
-                    statement: setupData.statement.trim(),
-                },
+                portfolio: updatedPortfolio,
                 socials: {
-                    ...prev.socials,
+                    ...prev?.socials,
                     ...((!hasBothSocials) && {
                         github: setupData.github.trim(),
                         linkedin: setupData.linkedin.trim(),
@@ -462,17 +464,19 @@ export default function Portfolio() {
     // ---- SAVE PORTFOLIO SETTINGS ----
     const handleSaveSettings = async (newSettings) => {
         try {
-            const userRef = doc(db, "users", user.uid);
-            await updateDoc(userRef, {
-                "portfolio.settings": newSettings
+            const userId = user.id || user.uid;
+            const updatedPortfolio = {
+                ...(userData?.portfolio || {}),
+                settings: newSettings
+            };
+
+            await updateUserProfile(userId, {
+                portfolio: updatedPortfolio
             });
 
             setUserData(prev => ({
                 ...prev,
-                portfolio: {
-                    ...prev.portfolio,
-                    settings: newSettings
-                }
+                portfolio: updatedPortfolio
             }));
 
             setPortfolioSettings(newSettings);

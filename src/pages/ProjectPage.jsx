@@ -206,6 +206,13 @@ export default function ProjectPage() {
             });
 
             setCompletedTasks(updatedCompletedTasks);
+            setUserData(prev => ({
+                ...prev,
+                activeProject: {
+                    ...(prev?.activeProject || {}),
+                    completedTasks: updatedCompletedTasks
+                }
+            }));
         } catch (error) {
             console.error("Error completing task:", error);
             alert("Failed to mark task as complete. Please try again.");
@@ -229,6 +236,7 @@ export default function ProjectPage() {
 
             const updatedActiveProject = {
                 ...(userData?.activeProject || {}),
+                completedTasks: completedTasks,
                 submissions: updatedSubmissions
             };
 
@@ -239,6 +247,26 @@ export default function ProjectPage() {
             const updatedUser = await getUserProfile(userId);
             if (updatedUser) {
                 setUserData(updatedUser);
+            }
+
+            // Send notification email to admin
+            try {
+                await fetch(`${EMAIL_CONFIG.API_BASE_URL}/api/send-email`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'milestoneSubmitAdmin',
+                        data: {
+                            userName: userData?.profile?.fullName || user?.displayName || 'User',
+                            userEmail: user?.email || userData?.profile?.email || '',
+                            projectName: project?.name || projectId,
+                            milestoneName: selectedMilestone?.title || milestoneId,
+                            milestoneId: milestoneId
+                        }
+                    })
+                });
+            } catch (emailErr) {
+                console.warn("Failed to send milestone submission email to admin:", emailErr);
             }
         } catch (error) {
             console.error("❌ ERROR submitting milestone:");
@@ -288,7 +316,7 @@ export default function ProjectPage() {
 
         setSubmitting(true);
         try {
-            const userRef = doc(db, "users", user.uid);
+            const userId = user.id || user.uid;
 
             // Create submission object
             const submission = {
@@ -298,23 +326,34 @@ export default function ProjectPage() {
                 submittedAt: new Date().toISOString(),
             };
 
-            // Update Firestore
-            await updateDoc(userRef, {
-                "activeProject.completedTasks": arrayUnion(selectedTask.fullTaskId),
-                "activeProject.submissions": arrayUnion(submission),
+            const existingTasks = userData?.activeProject?.completedTasks || [];
+            const existingSubmissions = userData?.activeProject?.submissions || [];
+
+            const updatedCompletedTasks = existingTasks.includes(selectedTask.fullTaskId)
+                ? existingTasks
+                : [...existingTasks, selectedTask.fullTaskId];
+
+            const updatedSubmissions = Array.isArray(existingSubmissions)
+                ? [...existingSubmissions, submission]
+                : { ...existingSubmissions, [selectedTask.fullTaskId]: submission };
+
+            const updatedActiveProject = {
+                ...(userData?.activeProject || {}),
+                completedTasks: updatedCompletedTasks,
+                submissions: updatedSubmissions,
+            };
+
+            await updateUserProfile(userId, {
+                activeProject: updatedActiveProject
             });
 
             // Update local state
-            setCompletedTasks(prev => [...prev, selectedTask.fullTaskId]);
+            setCompletedTasks(updatedCompletedTasks);
 
             // Update userData
             setUserData(prev => ({
                 ...prev,
-                activeProject: {
-                    ...prev.activeProject,
-                    completedTasks: [...(prev.activeProject.completedTasks || []), selectedTask.fullTaskId],
-                    submissions: [...(prev.activeProject.submissions || []), submission],
-                },
+                activeProject: updatedActiveProject,
             }));
 
             // Close modal

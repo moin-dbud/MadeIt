@@ -183,3 +183,48 @@ export const getUserProfile = async (uid) => {
     return null;
   }
 };
+
+/**
+ * Admin function: Fetch all pending milestone submissions across users
+ */
+export const getAllPendingMilestoneSubmissions = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .not('active_project', 'is', null);
+
+    if (error) {
+      console.error('Error fetching users for pending milestone submissions:', error);
+      return [];
+    }
+
+    const pendingList = [];
+
+    (data || []).forEach(row => {
+      const activeProj = row.active_project;
+      if (activeProj && activeProj.submissions) {
+        const submissionsObj = activeProj.submissions;
+        Object.entries(submissionsObj).forEach(([milestoneId, sub]) => {
+          if (sub && (sub.verificationStatus === 'under_review' || sub.verificationStatus === 'flagged')) {
+            pendingList.push({
+              userId: row.id,
+              userName: row.name || row.profile?.fullName || 'User',
+              userEmail: row.email || row.profile?.email || '',
+              projectId: activeProj.id,
+              projectName: activeProj.name || activeProj.id,
+              milestoneId: milestoneId,
+              submission: sub,
+              submittedAt: sub.submittedAt || sub.submitted_at || new Date().toISOString()
+            });
+          }
+        });
+      }
+    });
+
+    return pendingList;
+  } catch (error) {
+    console.error('getAllPendingMilestoneSubmissions error:', error);
+    return [];
+  }
+};

@@ -87,7 +87,7 @@ class ErrorBoundary extends React.Component {
                         </div>
 
                         {/* Technical Details (collapsed by default) */}
-                        {process.env.NODE_ENV === 'development' && this.state.error && (
+                        {import.meta.env.DEV && this.state.error && (
                             <details className="mt-6 p-4 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)]">
                                 <summary className="text-xs text-[#A0A0A0] cursor-pointer hover:text-white transition-colors">
                                     Technical Details (Dev Only)

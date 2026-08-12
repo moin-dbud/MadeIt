@@ -1,12 +1,15 @@
-const nodemailer = require('nodemailer');
+import nodemailer from 'nodemailer';
+
+const getEnv = () => typeof process !== 'undefined' ? process.env : {};
 
 // Email configuration helper
 const getTransporter = () => {
+    const env = getEnv();
     return nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
+            user: env.EMAIL_USER,
+            pass: env.EMAIL_PASS
         }
     });
 };
@@ -14,9 +17,10 @@ const getTransporter = () => {
 // Reusable email sender
 const sendEmail = async (to, subject, html) => {
     try {
+        const env = getEnv();
         const transporter = getTransporter();
         await transporter.sendMail({
-            from: `"MadeIt" <${process.env.EMAIL_USER}>`,
+            from: `"MadeIt" <${env.EMAIL_USER}>`,
             to,
             subject,
             html
@@ -47,5 +51,6 @@ const handleCorsOptions = (req, res) => {
     return false;
 };
 
-module.exports = { getTransporter, sendEmail, setCorsHeaders, handleCorsOptions };
+export { getTransporter, sendEmail, setCorsHeaders, handleCorsOptions };
+
 

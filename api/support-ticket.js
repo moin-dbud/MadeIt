@@ -1,6 +1,6 @@
-const nodemailer = require('nodemailer');
+import nodemailer from 'nodemailer';
 
-module.exports = async (req, res) => {
+export default async (req, res) => {
     // CORS headers
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -49,10 +49,12 @@ module.exports = async (req, res) => {
         };
         const issueTypeLabel = issueTypeLabels[issueType] || issueType;
 
+        const env = typeof process !== 'undefined' ? process.env : {};
+
         // Email to admin
         const mailToAdmin = {
-            from: `"MadeIt Support" <${process.env.EMAIL_USER}>`,
-            to: process.env.EMAIL_USER,
+            from: `"MadeIt Support" <${env.EMAIL_USER}>`,
+            to: env.EMAIL_USER,
             subject: `[MadeIt Support] New Ticket - ${issueTypeLabel}`,
             replyTo: userEmail,
             html: `
@@ -102,7 +104,7 @@ module.exports = async (req, res) => {
 
         // Auto-reply to user
         const mailToUser = {
-            from: `"Moin Sheikh - MadeIt" <${process.env.EMAIL_USER}>`,
+            from: `"Moin Sheikh - MadeIt" <${env.EMAIL_USER}>`,
             to: userEmail,
             subject: 'Your MadeIt Support Ticket Has Been Received',
             html: `
@@ -148,8 +150,8 @@ module.exports = async (req, res) => {
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS
+                user: env.EMAIL_USER,
+                pass: env.EMAIL_PASS
             }
         });
 
